@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# env files (keep .env.example committed; ignore real/local secrets)
+.env
+.env*.local
+
+# Next.js build output
+.next/
+out/
+web-caller/build/
+
+# PocketBase data + binary
+pb_data/
+pocketbase/pocketbase
+pocketbase/*.zip
+
+# misc
+.DS_Store
+*.log
