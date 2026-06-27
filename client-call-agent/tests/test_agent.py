@@ -44,11 +44,31 @@ def test_agent_uses_livekit_inference_llm() -> None:
     assert disallowed_plugin_import not in inspect.getsource(agent_module.build_llm)
 
 
-def test_agent_session_keeps_original_room_connect_lifecycle() -> None:
+def test_agent_pocketbase_url_accepts_shared_env_name(monkeypatch) -> None:
+    monkeypatch.delenv("CLEANVOICE_POCKETBASE_URL", raising=False)
+    monkeypatch.setenv("POCKETBASE_URL", "https://shared-pocketbase.example/")
+
+    assert (
+        agent_module.cleanvoice_pocketbase_url() == "https://shared-pocketbase.example"
+    )
+
+
+def test_agent_session_start_owns_room_connection() -> None:
     session_source = inspect.getsource(agent_module.my_agent)
 
-    assert "await ctx.connect()" in session_source
-    assert "generate_reply" not in session_source
+    assert "await session.start(" in session_source
+    assert "await ctx.connect()" not in session_source
+
+
+def test_agent_greets_caller_after_joining_room() -> None:
+    session_source = inspect.getsource(agent_module.my_agent)
+
+    start_index = session_source.index("await session.start(")
+    greeting_index = session_source.index("await session.generate_reply(")
+
+    assert start_index < greeting_index
+    assert "Greet the caller in German" in session_source
+    assert "Reinigung" in session_source
 
 
 def test_agent_reads_caller_phone_from_livekit_job_metadata() -> None:
@@ -61,16 +81,15 @@ def test_agent_reads_caller_phone_from_livekit_job_metadata() -> None:
     )
 
 
-def test_agent_preloads_call_context_before_connecting() -> None:
+def test_agent_preloads_call_context_before_starting_session() -> None:
     session_source = inspect.getsource(agent_module.my_agent)
 
     preload_index = session_source.index(
         "call_context = await preload_call_context(caller_phone)"
     )
     start_index = session_source.index("await session.start(")
-    connect_index = session_source.index("await ctx.connect()")
 
-    assert preload_index < start_index < connect_index
+    assert preload_index < start_index
 
 
 def test_assistant_exposes_hybrid_pocketbase_tools() -> None:
@@ -130,6 +149,45 @@ def test_prompt_uses_pocketbase_instead_of_demo_cleaner_profile() -> None:
     assert "Mayas" not in instructions
     assert "fünfundvierzig" not in instructions
     assert "from forty-five euros" not in instructions
+
+
+@pytest.mark.asyncio
+async def test_keyboard_filler_source_plays_generated_audio() -> None:
+    calls = []
+
+    class FakeSession:
+        def say(self, text, *, audio, add_to_chat_ctx):
+            calls.append((text, audio, add_to_chat_ctx))
+            return "speech-handle"
+
+    class FakeContext:
+        session = FakeSession()
+
+    source = agent_module.keyboard_filler_source(FakeContext())
+    handle = source(0)
+
+    assert handle == "speech-handle"
+    assert calls[0][0] == agent_module.KEYBOARD_FILLER_TRANSCRIPT
+    assert calls[0][2] is False
+
+    frames = []
+    async for frame in calls[0][1]:
+        frames.append(frame)
+
+    assert frames
+    assert frames[0].sample_rate == agent_module.KEYBOARD_FILLER_SAMPLE_RATE
+    assert frames[0].num_channels == 1
+    assert any(bytes(frame.data) for frame in frames)
+
+
+def test_pocketbase_tools_use_keyboard_filler() -> None:
+    suggest_source = inspect.getsource(Assistant.suggest_cleaner)
+    create_source = inspect.getsource(Assistant.create_booking)
+
+    assert "context.with_filler" in suggest_source
+    assert "keyboard_filler_source(context)" in suggest_source
+    assert "context.with_filler" in create_source
+    assert "keyboard_filler_source(context)" in create_source
 
 
 @pytest.mark.asyncio
@@ -473,6 +531,35 @@ async def test_pocketbase_create_booking_posts_payload_with_json_headers() -> No
             payload,
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_pocketbase_create_booking_accepts_created_status() -> None:
+    class FakeResponse:
+        status = 201
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def json(self):
+            return {"ok": True, "booking": {"id": "booking_123"}}
+
+        async def text(self):
+            return ""
+
+    class FakeSession:
+        def post(self, url, *, headers, json):
+            return FakeResponse()
+
+    client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
+
+    assert await client.create_booking({"caller_phone": "+491700000002"}) == {
+        "ok": True,
+        "booking": {"id": "booking_123"},
+    }
 
 
 @pytest.mark.asyncio

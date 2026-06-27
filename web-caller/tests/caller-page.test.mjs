@@ -27,9 +27,12 @@ test("caller page joins demo-call as the caller with audio-only LiveKit media", 
 
 test("caller page renders agent presence from room participants", () => {
   assert.match(pageSource, /useRemoteParticipants/);
+  assert.match(pageSource, /room\.remoteParticipants\.values\(\)/);
+  assert.match(pageSource, /RoomEvent\.ParticipantConnected/);
   assert.match(pageSource, /agent/i);
   assert.match(pageSource, /remoteParticipants\.find/);
   assert.match(pageSource, /remoteParticipants\.length === 1/);
+  assert.match(pageSource, /Agent identity:/);
 });
 
 test("caller page shows speaking indicators for caller and agent audio", () => {
@@ -87,10 +90,17 @@ test("dispatch helper explicitly dispatches the named voice agent into the demo 
   assert.match(dispatchHelperSource, /liveKitHttpUrl/);
 });
 
-test("dispatch helper does not reuse or delete stale dispatch records", () => {
-  assert.doesNotMatch(dispatchHelperSource, /listDispatch/);
-  assert.doesNotMatch(dispatchHelperSource, /deleteDispatch/);
-  assert.doesNotMatch(dispatchHelperSource, /dispatchHasActiveJob/);
+test("dispatch helper avoids duplicate jobs when an agent is already active", () => {
+  assert.match(dispatchHelperSource, /new RoomServiceClient/);
+  assert.match(dispatchHelperSource, /listParticipants\(room\)/);
+  assert.match(dispatchHelperSource, /status:\s*"already-present"/);
+  assert.match(dispatchHelperSource, /LIVEKIT_AGENT_PARTICIPANT_KIND/);
+});
+
+test("dispatch helper clears stale demo dispatch records before creating a fresh one", () => {
+  assert.match(dispatchHelperSource, /listDispatch\(room\)/);
+  assert.match(dispatchHelperSource, /deleteDispatch\(dispatch\.id,\s*room\)/);
+  assert.match(dispatchHelperSource, /isCleanVoiceDispatch/);
 });
 
 test("dispatch route dispatches the agent server-side without exposing secrets", () => {

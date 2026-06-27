@@ -11,8 +11,8 @@ import {
   useRemoteParticipants,
   useRoomContext,
 } from "@livekit/components-react";
-import { ConnectionState, ParticipantKind, type Participant } from "livekit-client";
-import { useCallback, useState } from "react";
+import { ConnectionState, ParticipantKind, RoomEvent, type Participant } from "livekit-client";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 // The agent and the cleaner view join this same room. Project convention
 // (see ../CLAUDE.md): hardcode "demo-call" everywhere for the demo.
@@ -191,13 +191,51 @@ function CallSession({ onEnd }: { onEnd: () => void }) {
   const room = useRoomContext();
   const connectionState = useConnectionState();
   const { localParticipant } = useLocalParticipant();
-  const remoteParticipants = useRemoteParticipants();
+  const hookRemoteParticipants = useRemoteParticipants();
+  const [roomRemoteParticipants, setRoomRemoteParticipants] = useState<Participant[]>(() =>
+    Array.from(room.remoteParticipants.values()),
+  );
   const [muted, setMuted] = useState(false);
+
+  useEffect(() => {
+    const syncRemoteParticipants = () => {
+      setRoomRemoteParticipants(Array.from(room.remoteParticipants.values()));
+    };
+
+    syncRemoteParticipants();
+    room
+      .on(RoomEvent.ParticipantConnected, syncRemoteParticipants)
+      .on(RoomEvent.ParticipantDisconnected, syncRemoteParticipants)
+      .on(RoomEvent.ConnectionStateChanged, syncRemoteParticipants);
+
+    return () => {
+      room
+        .off(RoomEvent.ParticipantConnected, syncRemoteParticipants)
+        .off(RoomEvent.ParticipantDisconnected, syncRemoteParticipants)
+        .off(RoomEvent.ConnectionStateChanged, syncRemoteParticipants);
+    };
+  }, [room]);
+
+  const remoteParticipants = useMemo(() => {
+    const byIdentity = new Map<string, Participant>();
+    for (const participant of roomRemoteParticipants) {
+      byIdentity.set(participant.identity, participant);
+    }
+    for (const participant of hookRemoteParticipants) {
+      byIdentity.set(participant.identity, participant);
+    }
+    return Array.from(byIdentity.values());
+  }, [hookRemoteParticipants, roomRemoteParticipants]);
 
   const agentParticipant =
     remoteParticipants.find(isLikelyAgentParticipant) ??
     (remoteParticipants.length === 1 ? remoteParticipants[0] : undefined);
   const agentInRoom = Boolean(agentParticipant);
+  const participantStatusLabel = agentParticipant
+    ? `Agent identity: ${agentParticipant.identity}`
+    : `Remote participants: ${
+        remoteParticipants.length > 0 ? remoteParticipants.map((p) => p.identity).join(", ") : "none"
+      }`;
 
   const toggleMute = useCallback(async () => {
     const nextMuted = !muted;
@@ -231,7 +269,7 @@ function CallSession({ onEnd }: { onEnd: () => void }) {
             />
             <span className="font-semibold">{agentInRoom ? "Agent joined" : "Agent waiting"}</span>
           </div>
-          <p className="mt-1 text-xs text-zinc-500">Participant identity: {CALLER_IDENTITY}</p>
+          <p className="mt-1 text-xs text-zinc-500">{participantStatusLabel}</p>
         </div>
       </div>
 

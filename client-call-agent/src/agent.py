@@ -1,11 +1,13 @@
 import json
 import logging
+import math
 import os
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
 from dotenv import load_dotenv
+from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -32,10 +34,18 @@ PROMPT_PATH = (
 DEFAULT_POCKETBASE_URL = "https://snowiness-difficult-finer.ngrok-free.dev"
 DEFAULT_LIVEKIT_INFERENCE_LLM_MODEL = "deepseek-ai/deepseek-v4-pro"
 DEFAULT_SIMULATED_CALLER_PHONE = "+491700000002"
+KEYBOARD_FILLER_TRANSCRIPT = "[Tastaturgeraeusch]"
+KEYBOARD_FILLER_SAMPLE_RATE = 24000
+KEYBOARD_FILLER_DELAY_SECONDS = 0.3
+KEYBOARD_FILLER_INTERVAL_SECONDS = 1.6
+KEYBOARD_FILLER_MAX_STEPS = 3
 
 
 def cleanvoice_pocketbase_url() -> str:
-    return os.getenv("CLEANVOICE_POCKETBASE_URL", DEFAULT_POCKETBASE_URL).rstrip("/")
+    return os.getenv(
+        "CLEANVOICE_POCKETBASE_URL",
+        os.getenv("POCKETBASE_URL", DEFAULT_POCKETBASE_URL),
+    ).rstrip("/")
 
 
 def simulated_caller_phone() -> str:
@@ -57,6 +67,85 @@ def caller_phone_from_job_metadata(metadata: str | None) -> str:
 
 def _format_call_context(call_context: dict[str, Any]) -> str:
     return json.dumps(call_context, ensure_ascii=False, sort_keys=True, indent=2)
+
+
+def build_keyboard_filler_frames() -> list[rtc.AudioFrame]:
+    sample_rate = KEYBOARD_FILLER_SAMPLE_RATE
+    duration_seconds = 1.25
+    frame_samples = int(sample_rate * 0.02)
+    total_samples = int(sample_rate * duration_seconds)
+    click_offsets = [
+        0.02,
+        0.09,
+        0.15,
+        0.24,
+        0.33,
+        0.41,
+        0.50,
+        0.57,
+        0.67,
+        0.75,
+        0.86,
+        0.95,
+        1.05,
+        1.15,
+    ]
+    click_samples = [int(offset * sample_rate) for offset in click_offsets]
+    click_duration = int(sample_rate * 0.028)
+    pcm = bytearray()
+
+    for sample_index in range(total_samples):
+        value = 0.0
+        for click_index, click_start in enumerate(click_samples):
+            age = sample_index - click_start
+            if age < 0 or age >= click_duration:
+                continue
+
+            t = age / sample_rate
+            envelope = math.exp(-t * 135) * (1 - age / click_duration)
+            tone = math.sin(2 * math.pi * 2300 * t) + 0.35 * math.sin(
+                2 * math.pi * 4100 * t
+            )
+            noise_seed = (sample_index * 1103515245 + click_index * 12345) & 0x7FFFFFFF
+            noise = ((noise_seed % 65536) / 32768) - 1
+            value += envelope * (0.18 * tone + 0.08 * noise)
+
+        clamped = max(-0.3, min(0.3, value))
+        pcm.extend(int(clamped * 32767).to_bytes(2, "little", signed=True))
+
+    frames: list[rtc.AudioFrame] = []
+    bytes_per_sample = 2
+    frame_bytes = frame_samples * bytes_per_sample
+    for offset in range(0, len(pcm), frame_bytes):
+        chunk = bytes(pcm[offset : offset + frame_bytes])
+        if len(chunk) < frame_bytes:
+            chunk += b"\x00" * (frame_bytes - len(chunk))
+        frames.append(
+            rtc.AudioFrame(
+                chunk,
+                sample_rate=sample_rate,
+                num_channels=1,
+                samples_per_channel=frame_samples,
+            )
+        )
+
+    return frames
+
+
+async def keyboard_filler_audio():
+    for frame in build_keyboard_filler_frames():
+        yield frame
+
+
+def keyboard_filler_source(context: RunContext):
+    def source(_step: int):
+        return context.session.say(
+            KEYBOARD_FILLER_TRANSCRIPT,
+            audio=keyboard_filler_audio(),
+            add_to_chat_ctx=False,
+        )
+
+    return source
 
 
 def load_caller_agent_prompt(
@@ -118,7 +207,7 @@ class PocketBaseClient:
         return utils.http_context.http_session()
 
     async def _json_or_tool_error(self, response: Any, action: str) -> dict[str, Any]:
-        if response.status != 200:
+        if not 200 <= response.status < 300:
             body = await response.text()
             raise ToolError(f"{action} failed with status {response.status}: {body}")
         data = await response.json()
@@ -274,7 +363,13 @@ class Assistant(Agent):
         booking_request = raw_arguments.get("booking_request")
         if not isinstance(booking_request, dict):
             raise ToolError("suggest_cleaner requires a booking_request object.")
-        return await PocketBaseClient().suggest_cleaner(booking_request)
+        async with context.with_filler(
+            keyboard_filler_source(context),
+            delay=KEYBOARD_FILLER_DELAY_SECONDS,
+            interval=KEYBOARD_FILLER_INTERVAL_SECONDS,
+            max_steps=KEYBOARD_FILLER_MAX_STEPS,
+        ):
+            return await PocketBaseClient().suggest_cleaner(booking_request)
 
     @function_tool(
         raw_schema={
@@ -308,7 +403,13 @@ class Assistant(Agent):
         payload = raw_arguments.get("payload")
         if not isinstance(payload, dict):
             raise ToolError("create_booking requires a payload object.")
-        return await PocketBaseClient().create_booking(payload)
+        async with context.with_filler(
+            keyboard_filler_source(context),
+            delay=KEYBOARD_FILLER_DELAY_SECONDS,
+            interval=KEYBOARD_FILLER_INTERVAL_SECONDS,
+            max_steps=KEYBOARD_FILLER_MAX_STEPS,
+        ):
+            return await PocketBaseClient().create_booking(payload)
 
 
 server = AgentServer()
@@ -373,8 +474,12 @@ async def my_agent(ctx: JobContext):
     # # Start the avatar and wait for it to join
     # await avatar.start(session, room=ctx.room)
 
-    # Join the room and connect to the user.
-    await ctx.connect()
+    await session.generate_reply(
+        instructions=(
+            "Greet the caller in German. Say that this is the Reinigung front desk, "
+            "ask how you can help with the cleaning request, and keep it to one short sentence."
+        )
+    )
 
 
 if __name__ == "__main__":
