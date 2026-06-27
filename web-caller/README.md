@@ -2,7 +2,7 @@
 
 Browser client that simulates a **person phoning the cleaning service**. It joins a
 LiveKit room as the `caller` participant (publishing the mic, playing the agent's audio)
-and talks to the Python voice agent in [`../agent`](../agent).
+and talks to the Python voice agent in [`../client-call-agent`](../client-call-agent).
 
 Built with Next.js (App Router) + TypeScript + Tailwind, using
 [`@livekit/components-react`](https://docs.livekit.io/reference/components/react/) and
