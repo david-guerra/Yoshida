@@ -21,22 +21,20 @@ export async function dispatchAgent({
   liveKitUrl,
   apiKey,
   apiSecret,
+  callerPhone,
 }: {
   room: string;
   liveKitUrl: string;
   apiKey: string;
   apiSecret: string;
+  callerPhone: string;
 }) {
   const dispatchClient = new AgentDispatchClient(liveKitHttpUrl(liveKitUrl), apiKey, apiSecret);
-  const existingDispatches = await dispatchClient.listDispatch(room).catch(() => []);
-
-  for (const dispatch of existingDispatches) {
-    if (dispatch.agentName === AGENT_NAME || dispatch.agentName === "") {
-      await dispatchClient.deleteDispatch(dispatch.id, room);
-    }
-  }
-
-  await dispatchClient.createDispatch(room, AGENT_NAME, {
-    metadata: JSON.stringify({ source: "web-caller", identity: "caller" }),
+  return await dispatchClient.createDispatch(room, AGENT_NAME, {
+    metadata: JSON.stringify({
+      source: "web-caller",
+      identity: "caller",
+      caller_phone: callerPhone,
+    }),
   });
 }

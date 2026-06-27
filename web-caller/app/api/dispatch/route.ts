@@ -4,6 +4,12 @@ import { dispatchAgent } from "@/lib/livekit-dispatch";
 
 export const runtime = "nodejs";
 
+const DEFAULT_SIMULATED_CALLER_PHONE = "+491700000002";
+
+function simulatedCallerPhone() {
+  return process.env.SIMULATED_CALLER_PHONE?.trim() || DEFAULT_SIMULATED_CALLER_PHONE;
+}
+
 export async function POST(req: NextRequest) {
   const { room } = (await req.json().catch(() => ({}))) as { room?: string };
 
@@ -14,6 +20,7 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
   const liveKitUrl = process.env.LIVEKIT_URL ?? process.env.NEXT_PUBLIC_LIVEKIT_URL;
+  const callerPhone = simulatedCallerPhone();
 
   if (!apiKey || !apiSecret || !liveKitUrl) {
     return NextResponse.json(
@@ -26,7 +33,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await dispatchAgent({ room, liveKitUrl, apiKey, apiSecret });
+    await dispatchAgent({ room, liveKitUrl, apiKey, apiSecret, callerPhone });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Failed to dispatch LiveKit agent", err);

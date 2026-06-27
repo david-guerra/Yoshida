@@ -6,6 +6,12 @@ import { dispatchAgent } from "@/lib/livekit-dispatch";
 // livekit-server-sdk signs tokens with Node's crypto, so force the Node.js runtime.
 export const runtime = "nodejs";
 
+const DEFAULT_SIMULATED_CALLER_PHONE = "+491700000002";
+
+function simulatedCallerPhone() {
+  return process.env.SIMULATED_CALLER_PHONE?.trim() || DEFAULT_SIMULATED_CALLER_PHONE;
+}
+
 /**
  * GET /api/token?room=<room>&identity=<identity>
  *
@@ -28,6 +34,7 @@ export async function GET(req: NextRequest) {
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
   const liveKitUrl = process.env.LIVEKIT_URL ?? process.env.NEXT_PUBLIC_LIVEKIT_URL;
+  const callerPhone = simulatedCallerPhone();
 
   if (!apiKey || !apiSecret || !liveKitUrl) {
     return NextResponse.json(
@@ -42,6 +49,10 @@ export async function GET(req: NextRequest) {
   const at = new AccessToken(apiKey, apiSecret, {
     identity,
     ttl: "15m",
+    metadata: JSON.stringify({ source: "web-caller", identity, caller_phone: callerPhone }),
+    attributes: {
+      "caller.phone": callerPhone,
+    },
   });
 
   at.addGrant({
@@ -52,7 +63,7 @@ export async function GET(req: NextRequest) {
   });
 
   try {
-    await dispatchAgent({ room, liveKitUrl, apiKey, apiSecret });
+    await dispatchAgent({ room, liveKitUrl, apiKey, apiSecret, callerPhone });
   } catch (err) {
     console.error("Failed to dispatch LiveKit agent", err);
     return NextResponse.json({ error: "Failed to dispatch the voice agent." }, { status: 502 });

@@ -39,9 +39,9 @@ test("caller page shows speaking indicators for caller and agent audio", () => {
   assert.match(pageSource, /activeClassName="bg-sky-500/);
 });
 
-test("caller page requests agent dispatch again after the room connects", () => {
-  assert.match(pageSource, /dispatchAgentAfterConnect/);
-  assert.match(pageSource, /fetch\("\/api\/dispatch"/);
+test("caller page does not dispatch the agent again after the room connects", () => {
+  assert.doesNotMatch(pageSource, /dispatchAgentAfterConnect/);
+  assert.doesNotMatch(pageSource, /fetch\("\/api\/dispatch"/);
   assert.match(pageSource, /onConnected=\{handleConnected\}/);
 });
 
@@ -66,12 +66,31 @@ test("token route mints a scoped room token that can publish mic audio and subsc
 });
 
 test("token route explicitly dispatches the named voice agent into the demo room", () => {
-  assert.match(tokenRouteSource, /dispatchAgent\(\{\s*room,\s*liveKitUrl,\s*apiKey,\s*apiSecret/s);
+  assert.match(
+    tokenRouteSource,
+    /dispatchAgent\(\{\s*room,\s*liveKitUrl,\s*apiKey,\s*apiSecret,\s*callerPhone/s,
+  );
+});
+
+test("token route and dispatch metadata include the simulated caller phone", () => {
+  assert.match(tokenRouteSource, /SIMULATED_CALLER_PHONE/);
+  assert.match(tokenRouteSource, /const callerPhone/);
+  assert.match(tokenRouteSource, /metadata:\s*JSON\.stringify\(\{[\s\S]*caller_phone:\s*callerPhone/);
+  assert.match(tokenRouteSource, /"caller.phone":\s*callerPhone/);
+  assert.match(dispatchHelperSource, /callerPhone:\s*string/);
+  assert.match(dispatchHelperSource, /caller_phone:\s*callerPhone/);
+});
+
+test("dispatch helper explicitly dispatches the named voice agent into the demo room", () => {
   assert.match(dispatchHelperSource, /const AGENT_NAME = "client-call-agent"/);
   assert.match(dispatchHelperSource, /createDispatch\(room,\s*AGENT_NAME/);
-  assert.match(dispatchHelperSource, /listDispatch\(room\)/);
-  assert.match(dispatchHelperSource, /deleteDispatch\(dispatch\.id,\s*room\)/);
   assert.match(dispatchHelperSource, /liveKitHttpUrl/);
+});
+
+test("dispatch helper does not reuse or delete stale dispatch records", () => {
+  assert.doesNotMatch(dispatchHelperSource, /listDispatch/);
+  assert.doesNotMatch(dispatchHelperSource, /deleteDispatch/);
+  assert.doesNotMatch(dispatchHelperSource, /dispatchHasActiveJob/);
 });
 
 test("dispatch route dispatches the agent server-side without exposing secrets", () => {

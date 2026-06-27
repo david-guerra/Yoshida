@@ -93,25 +93,9 @@ export default function Home() {
     setCallState("ended");
   }, []);
 
-  const dispatchAgentAfterConnect = useCallback(async () => {
-    const res = await fetch("/api/dispatch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ room: ROOM_NAME }),
-    });
-
-    if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(body?.error ?? `Agent dispatch failed (${res.status})`);
-    }
-  }, []);
-
   const handleConnected = useCallback(() => {
     setCallState("live");
-    dispatchAgentAfterConnect().catch((err) => {
-      setError(err instanceof Error ? err.message : "Failed to dispatch the voice agent.");
-    });
-  }, [dispatchAgentAfterConnect]);
+  }, []);
 
   const handleLiveKitError = useCallback((err: Error) => {
     setError(formatCallError(err));

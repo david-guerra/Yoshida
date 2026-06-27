@@ -1,16 +1,482 @@
+import inspect
+import os
 import textwrap
 
 import pytest
 from livekit.agents import AgentSession, inference, llm
 
-from agent import Assistant
+import agent as agent_module
+from agent import Assistant, PocketBaseClient
 
 
 def _judge_llm() -> llm.LLM:
-    return inference.LLM(model="openai/gpt-4.1-mini")
+    return agent_module.build_llm()
+
+
+live_agent_eval = pytest.mark.skipif(
+    os.getenv("RUN_LIVEKIT_EVALS") != "1",
+    reason="Set RUN_LIVEKIT_EVALS=1 to run live agent evals.",
+)
+
+
+def test_assistant_uses_caller_agent_master_prompt() -> None:
+    instructions = Assistant().instructions
+
+    assert "Caller Agent Master Prompt" in instructions
+    assert "Start in German." in instructions
+    assert "Target voice provider: ElevenLabs." in instructions
+    assert "Every booking is tentative until the cleaner confirms it." in instructions
+
+
+def test_agent_uses_german_elevenlabs_tts_model() -> None:
+    session_source = inspect.getsource(agent_module.my_agent)
+
+    assert "elevenlabs/eleven_flash_v2_5" in session_source
+    assert '"language": "de"' in session_source
+    assert "ELEVENLABS_VOICE_ID" in session_source
+
+
+def test_agent_uses_livekit_inference_llm() -> None:
+    llm_service = agent_module.build_llm()
+    disallowed_plugin_import = "livekit.plugins." + "op" + "en" + "ai"
+
+    assert isinstance(llm_service, inference.LLM)
+    assert disallowed_plugin_import not in inspect.getsource(agent_module.build_llm)
+
+
+def test_agent_session_keeps_original_room_connect_lifecycle() -> None:
+    session_source = inspect.getsource(agent_module.my_agent)
+
+    assert "await ctx.connect()" in session_source
+    assert "generate_reply" not in session_source
+
+
+def test_agent_reads_caller_phone_from_livekit_job_metadata() -> None:
+    session_source = inspect.getsource(agent_module.my_agent)
+
+    assert "caller_phone_from_job_metadata(ctx.job.metadata)" in session_source
+    assert (
+        "Assistant(caller_phone=caller_phone, call_context=call_context)"
+        in session_source
+    )
+
+
+def test_agent_preloads_call_context_before_connecting() -> None:
+    session_source = inspect.getsource(agent_module.my_agent)
+
+    preload_index = session_source.index(
+        "call_context = await preload_call_context(caller_phone)"
+    )
+    start_index = session_source.index("await session.start(")
+    connect_index = session_source.index("await ctx.connect()")
+
+    assert preload_index < start_index < connect_index
+
+
+def test_assistant_exposes_hybrid_pocketbase_tools() -> None:
+    tool_names = {tool.id for tool in Assistant().tools}
+
+    assert "create_booking" in tool_names
+    assert "get_cleaner_preferences" in tool_names
+    assert "suggest_cleaner" in tool_names
+    assert "identify_caller" not in tool_names
+    assert "get_cleaner_briefing" not in tool_names
+
+
+def test_prompt_describes_pocketbase_role_flow() -> None:
+    instructions = Assistant().instructions
+
+    assert "create_booking" in instructions
+    assert "get_cleaner_preferences" in instructions
+    assert "suggest_cleaner" in instructions
+    assert "Preloaded PocketBase Call Context" in instructions
+    assert "read the briefing field verbatim" in instructions
+
+
+def test_prompt_uses_preloaded_context_without_startup_lookup_tool() -> None:
+    instructions = Assistant(
+        caller_phone="+491700000002",
+        call_context={
+            "lookup_status": "available",
+            "caller_phone": "+491700000002",
+            "role": "existing_client",
+            "identify_caller": {
+                "role": "existing_client",
+                "client": {"name": "Anna Weber", "preferred_language": "de"},
+            },
+        },
+    ).instructions
+
+    assert "`caller_phone`: `+491700000002`" in instructions
+    assert '"role": "existing_client"' in instructions
+    assert "Anna Weber" in instructions
+    assert "Do not ask the caller to provide their phone number" in instructions
+    assert (
+        "Call `identify_caller(caller_phone)` before choosing the call path."
+        not in instructions
+    )
+    assert "Use this imported caller_phone for identify_caller" not in instructions
+    assert "ask for the phone number" not in instructions
+
+
+def test_prompt_uses_pocketbase_instead_of_demo_cleaner_profile() -> None:
+    instructions = Assistant().instructions
+
+    assert "PocketBase is the source of truth" in instructions
+    assert "No hardcoded cleaner identity" in instructions
+    assert "Use only PocketBase tool results" in instructions
+    assert "Demo Cleaner Profile" not in instructions
+    assert "Maya" not in instructions
+    assert "Mayas" not in instructions
+    assert "fünfundvierzig" not in instructions
+    assert "from forty-five euros" not in instructions
 
 
 @pytest.mark.asyncio
+async def test_preload_call_context_identifies_caller() -> None:
+    calls = []
+
+    class FakePocketBaseClient:
+        async def identify_caller(self, caller_phone: str):
+            calls.append(("identify_caller", caller_phone))
+            return {
+                "role": "existing_client",
+                "client": {"name": "Anna Weber", "preferred_language": "de"},
+            }
+
+        async def get_cleaner_briefing(self, caller_phone: str):
+            calls.append(("get_cleaner_briefing", caller_phone))
+            return {"briefing": "Should not be called."}
+
+    result = await agent_module.preload_call_context(
+        "+491700000002", client=FakePocketBaseClient()
+    )
+
+    assert result == {
+        "lookup_status": "available",
+        "caller_phone": "+491700000002",
+        "role": "existing_client",
+        "identify_caller": {
+            "role": "existing_client",
+            "client": {"name": "Anna Weber", "preferred_language": "de"},
+        },
+    }
+    assert calls == [("identify_caller", "+491700000002")]
+
+
+@pytest.mark.asyncio
+async def test_preload_call_context_fetches_cleaner_briefing() -> None:
+    calls = []
+
+    class FakePocketBaseClient:
+        async def identify_caller(self, caller_phone: str):
+            calls.append(("identify_caller", caller_phone))
+            return {"role": "cleaner", "cleaner": {"name": "Maria"}}
+
+        async def get_cleaner_briefing(self, caller_phone: str):
+            calls.append(("get_cleaner_briefing", caller_phone))
+            return {
+                "role": "cleaner",
+                "briefing": "Hi Maria. You have one tentative job.",
+            }
+
+        async def get_cleaner_preferences(self, caller_phone: str):
+            calls.append(("get_cleaner_preferences", caller_phone))
+            return {
+                "ok": True,
+                "preferences": {
+                    "working_days": ["monday", "tuesday", "wednesday"],
+                    "available_start_time": "09:00",
+                    "available_end_time": "17:00",
+                    "service_locations": ["Berlin"],
+                    "preferred_services": ["regular_cleaning", "deep_cleaning"],
+                    "minimum_budget": 60,
+                },
+            }
+
+    result = await agent_module.preload_call_context(
+        "+491700000001", client=FakePocketBaseClient()
+    )
+
+    assert result == {
+        "lookup_status": "available",
+        "caller_phone": "+491700000001",
+        "role": "cleaner",
+        "identify_caller": {"role": "cleaner", "cleaner": {"name": "Maria"}},
+        "cleaner_briefing": {
+            "role": "cleaner",
+            "briefing": "Hi Maria. You have one tentative job.",
+        },
+        "cleaner_preferences": {
+            "ok": True,
+            "preferences": {
+                "working_days": ["monday", "tuesday", "wednesday"],
+                "available_start_time": "09:00",
+                "available_end_time": "17:00",
+                "service_locations": ["Berlin"],
+                "preferred_services": ["regular_cleaning", "deep_cleaning"],
+                "minimum_budget": 60,
+            },
+        },
+    }
+    assert calls == [
+        ("identify_caller", "+491700000001"),
+        ("get_cleaner_briefing", "+491700000001"),
+        ("get_cleaner_preferences", "+491700000001"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_preload_call_context_falls_back_when_pocketbase_fails() -> None:
+    class FakePocketBaseClient:
+        async def identify_caller(self, caller_phone: str):
+            raise RuntimeError("PocketBase is unavailable")
+
+    result = await agent_module.preload_call_context(
+        "+491700000003", client=FakePocketBaseClient()
+    )
+
+    assert result == {
+        "lookup_status": "unavailable",
+        "caller_phone": "+491700000003",
+        "role": "unknown",
+        "error": "PocketBase is unavailable",
+    }
+
+
+@pytest.mark.asyncio
+async def test_pocketbase_identify_caller_posts_with_ngrok_header() -> None:
+    calls = []
+
+    class FakeResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def json(self):
+            return {"role": "new_client"}
+
+        async def text(self):
+            return ""
+
+    class FakeSession:
+        def post(self, url, *, headers, json):
+            calls.append(("POST", url, headers, json))
+            return FakeResponse()
+
+    client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
+
+    result = await client.identify_caller("+491700000001")
+
+    assert result == {"role": "new_client"}
+    assert calls == [
+        (
+            "POST",
+            "https://example.test/api/cleanvoice/identify-caller",
+            {
+                "ngrok-skip-browser-warning": "true",
+                "Content-Type": "application/json",
+            },
+            {"caller_phone": "+491700000001"},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_pocketbase_cleaner_briefing_encodes_plus_phone() -> None:
+    calls = []
+
+    class FakeResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def json(self):
+            return {"role": "cleaner", "briefing": "Hi Maria."}
+
+        async def text(self):
+            return ""
+
+    class FakeSession:
+        def get(self, url, *, headers):
+            calls.append(("GET", url, headers))
+            return FakeResponse()
+
+    client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
+
+    result = await client.get_cleaner_briefing("+491700000001")
+
+    assert result == {"role": "cleaner", "briefing": "Hi Maria."}
+    assert calls == [
+        (
+            "GET",
+            "https://example.test/api/cleanvoice/cleaner-briefing?phone=%2B491700000001",
+            {"ngrok-skip-browser-warning": "true"},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_pocketbase_cleaner_preferences_encodes_plus_phone() -> None:
+    calls = []
+
+    class FakeResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def json(self):
+            return {
+                "ok": True,
+                "preferences": {"service_locations": ["Berlin"]},
+            }
+
+        async def text(self):
+            return ""
+
+    class FakeSession:
+        def get(self, url, *, headers):
+            calls.append(("GET", url, headers))
+            return FakeResponse()
+
+    client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
+
+    result = await client.get_cleaner_preferences("+491700000001")
+
+    assert result == {
+        "ok": True,
+        "preferences": {"service_locations": ["Berlin"]},
+    }
+    assert calls == [
+        (
+            "GET",
+            "https://example.test/api/cleanvoice/cleaner-preferences?phone=%2B491700000001",
+            {"ngrok-skip-browser-warning": "true"},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_pocketbase_suggest_cleaner_posts_booking_request() -> None:
+    calls = []
+    booking_request = {
+        "service_type": "regular_cleaning",
+        "city": "Berlin",
+        "postal_code": "13353",
+        "start_time": "2026-06-27T14:00:00+02:00",
+        "estimated_budget": 80,
+    }
+
+    class FakeResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def json(self):
+            return {
+                "ok": True,
+                "available": True,
+                "cleaner": {"phone": "+491700000001"},
+                "warnings": [],
+            }
+
+        async def text(self):
+            return ""
+
+    class FakeSession:
+        def post(self, url, *, headers, json):
+            calls.append(("POST", url, headers, json))
+            return FakeResponse()
+
+    client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
+
+    result = await client.suggest_cleaner(booking_request)
+
+    assert result == {
+        "ok": True,
+        "available": True,
+        "cleaner": {"phone": "+491700000001"},
+        "warnings": [],
+    }
+    assert calls == [
+        (
+            "POST",
+            "https://example.test/api/cleanvoice/suggest-cleaner",
+            {
+                "ngrok-skip-browser-warning": "true",
+                "Content-Type": "application/json",
+            },
+            booking_request,
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_pocketbase_create_booking_posts_payload_with_json_headers() -> None:
+    calls = []
+    payload = {
+        "caller_phone": "+491700000002",
+        "client": {"name": "Anna Weber", "preferred_language": "de"},
+        "address": {"city": "Berlin"},
+        "booking": {"service_type": "regular_cleaning"},
+    }
+
+    class FakeResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def json(self):
+            return {"ok": True, "cleaner_briefing": "Hi Maria."}
+
+        async def text(self):
+            return ""
+
+    class FakeSession:
+        def post(self, url, *, headers, json):
+            calls.append(("POST", url, headers, json))
+            return FakeResponse()
+
+    client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
+
+    result = await client.create_booking(payload)
+
+    assert result == {"ok": True, "cleaner_briefing": "Hi Maria."}
+    assert calls == [
+        (
+            "POST",
+            "https://example.test/api/cleanvoice/create-booking",
+            {
+                "ngrok-skip-browser-warning": "true",
+                "Content-Type": "application/json",
+            },
+            payload,
+        )
+    ]
+
+
+@pytest.mark.asyncio
+@live_agent_eval
 async def test_offers_assistance() -> None:
     """Evaluation of the agent's friendly nature."""
     async with (
@@ -45,6 +511,7 @@ async def test_offers_assistance() -> None:
 
 
 @pytest.mark.asyncio
+@live_agent_eval
 async def test_grounding() -> None:
     """Evaluation of the agent's ability to refuse to answer when it doesn't know something."""
     async with (
@@ -89,6 +556,7 @@ async def test_grounding() -> None:
 
 
 @pytest.mark.asyncio
+@live_agent_eval
 async def test_refuses_harmful_request() -> None:
     """Evaluation of the agent's ability to refuse inappropriate or harmful requests."""
     async with (

@@ -95,6 +95,21 @@ const defaultPreferences: CleanerPreferenceRecord = {
   ],
 };
 
+const defaultCleaner: CleanerProfile = {
+  id: CLEANER_ID,
+  name: "Maria",
+  phone: "+49 170 0000001",
+  email: "maria@example.com",
+  preferred_language: "en",
+  service_areas: defaultPreferences.service_locations ?? [],
+  skills: defaultPreferences.preferred_services ?? [],
+};
+
+const defaultSettings: CleanerSettings = {
+  cleaner: defaultCleaner,
+  preferences: defaultPreferences,
+};
+
 function normalizeStringArray(value: unknown, fallback: string[]) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
@@ -205,33 +220,41 @@ function normalizeCleaner(cleaner: CleanerRecord): CleanerProfile {
 }
 
 export async function getCleanerProfile() {
-  const cleaner = await pocketBaseRequest<CleanerRecord>(
-    `/api/collections/cleaners/records/${CLEANER_ID}`,
-    { auth: "required" },
-  );
+  try {
+    const cleaner = await pocketBaseRequest<CleanerRecord>(
+      `/api/collections/cleaners/records/${CLEANER_ID}`,
+      { auth: "required" },
+    );
 
-  return normalizeCleaner(cleaner);
+    return normalizeCleaner(cleaner);
+  } catch {
+    return defaultCleaner;
+  }
 }
 
 export async function getCleanerSettings(): Promise<CleanerSettings> {
-  const cleaner = await getCleanerProfile();
+  try {
+    const cleaner = await getCleanerProfile();
 
-  const params = new URLSearchParams({
-    filter: `cleaner = "${CLEANER_ID}"`,
-    perPage: "1",
-  });
+    const params = new URLSearchParams({
+      filter: `cleaner = "${CLEANER_ID}"`,
+      perPage: "1",
+    });
 
-  const preferenceData = await pocketBaseRequest<
-    PocketBaseList<CleanerPreferenceRecord>
-  >("/api/collections/cleaner_preferences/records", {
-    auth: "required",
-    params,
-  });
+    const preferenceData = await pocketBaseRequest<
+      PocketBaseList<CleanerPreferenceRecord>
+    >("/api/collections/cleaner_preferences/records", {
+      auth: "required",
+      params,
+    });
 
-  const preferences = normalizePreference(preferenceData.items?.[0]);
+    const preferences = normalizePreference(preferenceData.items?.[0]);
 
-  return {
-    cleaner,
-    preferences,
-  };
+    return {
+      cleaner,
+      preferences,
+    };
+  } catch {
+    return defaultSettings;
+  }
 }
