@@ -3,12 +3,21 @@ type PocketBaseRequestOptions = {
   body?: unknown;
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   params?: URLSearchParams;
+  token?: string | null;
 };
 
 const POCKETBASE_URL =
   process.env.POCKETBASE_URL ??
   process.env.NEXT_PUBLIC_POCKETBASE_URL ??
   "http://127.0.0.1:8090";
+
+export function getPublicPocketBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_POCKETBASE_URL ??
+    process.env.POCKETBASE_URL ??
+    "http://127.0.0.1:8090"
+  );
+}
 
 const PB_ADMIN_EMAIL =
   process.env.PB_ADMIN_EMAIL ?? process.env.POCKETBASE_ADMIN_EMAIL;
@@ -81,7 +90,9 @@ export async function pocketBaseRequest<T>(
   options: PocketBaseRequestOptions = {},
 ) {
   const auth = options.auth ?? "optional";
-  const token = auth === "none" ? null : await getAdminToken(auth === "required");
+  const token =
+    options.token ??
+    (auth === "none" ? null : await getAdminToken(auth === "required"));
   const headers: Record<string, string> = {
     "ngrok-skip-browser-warning": "true",
   };
@@ -110,4 +121,3 @@ export async function pocketBaseRequest<T>(
 
   return (await res.json()) as T;
 }
-

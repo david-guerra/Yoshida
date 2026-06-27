@@ -1,103 +1,71 @@
 import Link from "next/link";
 import DashboardHeader from "@/src/components/DashboardHeader";
-import {
-  formatAppointment,
-  getOrders,
-  type OrderRecord,
-} from "@/src/lib/orders";
-
-function StatusBadge({ order }: { order: OrderRecord }) {
-  const color =
-    order.tone === "green"
-      ? "bg-[#edf8f1] text-[#3f8a5c]"
-      : "bg-[#fff4e8] text-[#b56c2f]";
-
-  return (
-    <span className={`rounded-md px-3 py-1 text-sm font-semibold ${color}`}>
-      {order.status}
-    </span>
-  );
-}
-
-function OrderRow({ order }: { order: OrderRecord }) {
-  return (
-    <Link
-      className="grid w-full grid-cols-[1fr_auto_24px] items-center gap-4 border-b border-[#edf1ee] px-4 py-4 text-left last:border-b-0 hover:bg-[#f8fbf9]"
-      href={`/orders/${order.orderId}`}
-    >
-      <span>
-        <span className="block text-base font-semibold text-[#25312a]">
-          {order.customerName}
-        </span>
-        <span className="mt-1 block text-sm font-medium text-[#5e6d63]">
-          {formatAppointment(order)} - {order.location}
-        </span>
-        <span className="mt-1 block text-sm text-[#6b7a70]">
-          {order.service}
-        </span>
-      </span>
-      <StatusBadge order={order} />
-      <span className="text-2xl leading-none text-[#2f3a33]">{">"}</span>
-    </Link>
-  );
-}
-
-function OrderSection({
-  title,
-  sectionOrders,
-}: {
-  title: string;
-  sectionOrders: OrderRecord[];
-}) {
-  return (
-    <section>
-      <h2 className="mb-3 text-xl font-semibold text-[#25312a]">{title}</h2>
-      <div className="overflow-hidden rounded-lg border border-[#e3e9e5] bg-white">
-        {sectionOrders.map((order) => (
-          <OrderRow key={order.orderId} order={order} />
-        ))}
-      </div>
-    </section>
-  );
-}
+import LiveOrdersDashboard from "@/src/components/LiveOrdersDashboard";
+import { requireCleanerSession } from "@/src/lib/auth";
+import { getOrders } from "@/src/lib/orders";
+import { getPublicPocketBaseUrl } from "@/src/lib/pocketbase";
 
 export default async function HomePage() {
-  const pageOrders = await getOrders();
-  const upcomingOrders = pageOrders.filter(
-    (order) => order.category === "upcoming",
-  );
-  const pastOrders = pageOrders.filter((order) => order.category === "past");
+  const session = await requireCleanerSession();
+  const pageOrders = await getOrders(session.cleanerId, session.token);
+  const upcomingCount = pageOrders.filter((order) => order.category === "upcoming").length;
+  const needsReviewCount = pageOrders.filter((order) =>
+    ["needs approval", "requested", "tentative"].some((status) =>
+      order.status.toLowerCase().includes(status),
+    ),
+  ).length;
 
   return (
-    <main className="min-h-screen bg-[#f4f7f5] px-5 py-6 text-[#162018] sm:px-8">
+    <main className="min-h-screen bg-[#f7f8f4] px-4 py-5 text-[#162018] sm:px-8">
       <DashboardHeader active="dashboard" />
 
-      <section className="mx-auto max-w-6xl rounded-lg border border-[#e3e9e5] bg-white px-5 py-7 shadow-sm sm:px-8">
-        <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-            <h1 className="text-3xl font-semibold tracking-normal text-[#10231d]">
+      <section className="mx-auto max-w-6xl">
+        <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold text-[#3d6d58]">
+              Live booking workspace
+            </p>
+            <h1 className="mt-2 text-4xl font-semibold tracking-normal text-[#10231d] sm:text-5xl">
               Cleaner Desk
             </h1>
-            <span className="w-fit rounded-full bg-[#edf8f1] px-3 py-1 text-sm font-semibold text-[#2f7d4f]">
-              Phone - 3 new calls
-            </span>
+            <p className="mt-3 text-base leading-7 text-[#5f6e64]">
+              A simple view of calls the voice agent has qualified, grouped by
+              what needs attention now.
+            </p>
           </div>
 
-          <button className="w-fit rounded-md border border-[#dfe7e2] bg-white px-4 py-2 text-sm font-semibold text-[#344238] shadow-sm hover:bg-[#f8fbf9]">
-            Cleaner language: English
-          </button>
-          <Link
-            className="w-fit rounded-md bg-[#244f3b] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#1d3f30]"
-            href="/orders/new"
-          >
-            New order
-          </Link>
+          <div className="grid gap-3 sm:grid-cols-[auto_auto_auto] lg:min-w-[520px]">
+            <div className="rounded-2xl border border-[#e1e6dd] bg-white/80 px-4 py-3 shadow-sm">
+              <p className="text-xs font-semibold uppercase text-[#718076]">
+                Upcoming
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-[#10231d]">
+                {upcomingCount}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-[#e1e6dd] bg-white/80 px-4 py-3 shadow-sm">
+              <p className="text-xs font-semibold uppercase text-[#718076]">
+                Needs review
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-[#10231d]">
+                {needsReviewCount}
+              </p>
+            </div>
+            <Link
+              className="flex min-h-20 items-center justify-center rounded-2xl bg-[#244f3b] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d3f30] focus:outline-none focus:ring-2 focus:ring-[#9dccac]"
+              href="/orders/new"
+            >
+              New order
+            </Link>
+          </div>
         </div>
 
-        <div className="space-y-7">
-          <OrderSection title="Upcoming" sectionOrders={upcomingOrders} />
-          <OrderSection title="Past" sectionOrders={pastOrders} />
-        </div>
+        <LiveOrdersDashboard
+          cleanerId={session.cleanerId}
+          initialOrders={pageOrders}
+          pocketBaseUrl={getPublicPocketBaseUrl()}
+          token={session.token}
+        />
       </section>
     </main>
   );

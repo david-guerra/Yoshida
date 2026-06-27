@@ -1,10 +1,5 @@
 import { pocketBaseRequest } from "@/src/lib/pocketbase";
 
-export const CLEANER_ID =
-  process.env.NEXT_PUBLIC_CLEANER_ID ??
-  process.env.CLEANER_ID ??
-  "4bv09jvfeljswjj";
-
 export const workingDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export const serviceOptions = [
@@ -74,51 +69,30 @@ export const languageLabels: Record<string, string> = {
   uk: "Ukrainian",
 };
 
-const defaultPreferences: CleanerPreferenceRecord = {
-  id: "",
-  cleaner: CLEANER_ID,
-  working_days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-  available_start_time: "08:00",
-  available_end_time: "17:00",
-  service_locations: ["Mitte", "Kreuzberg", "Neukolln", "Prenzlauer Berg"],
-  preferred_services: ["regular_cleaning", "deep_cleaning", "move_out"],
-  minimum_budget: 80,
-  business_rules:
-    "Only accept jobs in listed service locations, during working days and hours, above minimum budget, and matching preferred services. If anything is unclear or outside these rules, mark the booking as requested for cleaner approval.",
-  exceptions: [
-    {
-      date: "2026-07-24",
-      from: "13:00",
-      until: "18:00",
-      reason: "Unavailable",
-    },
-  ],
-};
+function emptyPreference(cleanerId: string): CleanerPreferenceRecord {
+  return {
+    id: "",
+    cleaner: cleanerId,
+    working_days: [],
+    available_start_time: "",
+    available_end_time: "",
+    service_locations: [],
+    preferred_services: [],
+    minimum_budget: 0,
+    business_rules: "",
+    exceptions: [],
+  };
+}
 
-const defaultCleaner: CleanerProfile = {
-  id: CLEANER_ID,
-  name: "Maria",
-  phone: "+49 170 0000001",
-  email: "maria@example.com",
-  preferred_language: "en",
-  service_areas: defaultPreferences.service_locations ?? [],
-  skills: defaultPreferences.preferred_services ?? [],
-};
-
-const defaultSettings: CleanerSettings = {
-  cleaner: defaultCleaner,
-  preferences: defaultPreferences,
-};
-
-function normalizeStringArray(value: unknown, fallback: string[]) {
+function normalizeStringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
-    : fallback;
+    : [];
 }
 
 function normalizeExceptions(value: unknown) {
   if (!Array.isArray(value)) {
-    return defaultPreferences.exceptions ?? [];
+    return [];
   }
 
   return value
@@ -141,24 +115,16 @@ function normalizeExceptions(value: unknown) {
 }
 
 function normalizePreference(
+  cleanerId: string,
   preference: Partial<CleanerPreferenceRecord> | undefined,
 ) {
   return {
-    ...defaultPreferences,
+    ...emptyPreference(cleanerId),
     ...preference,
-    cleaner: preference?.cleaner ?? CLEANER_ID,
-    working_days: normalizeStringArray(
-      preference?.working_days,
-      defaultPreferences.working_days ?? [],
-    ),
-    service_locations: normalizeStringArray(
-      preference?.service_locations,
-      defaultPreferences.service_locations ?? [],
-    ),
-    preferred_services: normalizeStringArray(
-      preference?.preferred_services,
-      defaultPreferences.preferred_services ?? [],
-    ),
+    cleaner: preference?.cleaner ?? cleanerId,
+    working_days: normalizeStringArray(preference?.working_days),
+    service_locations: normalizeStringArray(preference?.service_locations),
+    preferred_services: normalizeStringArray(preference?.preferred_services),
     exceptions: normalizeExceptions(preference?.exceptions),
   };
 }
@@ -210,51 +176,45 @@ export function parseExceptions(value: string): CleanerException[] {
 function normalizeCleaner(cleaner: CleanerRecord): CleanerProfile {
   return {
     id: cleaner.id,
-    name: cleaner.name ?? "Maria",
+    name: cleaner.name ?? "",
     phone: cleaner.phone ?? "",
     email: cleaner.email ?? "",
     preferred_language: cleaner.preferred_language ?? "en",
-    service_areas: normalizeStringArray(cleaner.service_areas, []),
-    skills: normalizeStringArray(cleaner.skills, []),
+    service_areas: normalizeStringArray(cleaner.service_areas),
+    skills: normalizeStringArray(cleaner.skills),
   };
 }
 
-export async function getCleanerProfile() {
-  try {
-    const cleaner = await pocketBaseRequest<CleanerRecord>(
-      `/api/collections/cleaners/records/${CLEANER_ID}`,
-      { auth: "required" },
-    );
+export async function getCleanerProfile(cleanerId: string, token?: string) {
+  const cleaner = await pocketBaseRequest<CleanerRecord>(
+    `/api/collections/cleaners/records/${cleanerId}`,
+    { auth: token ? "none" : "required", token },
+  );
 
-    return normalizeCleaner(cleaner);
-  } catch {
-    return defaultCleaner;
-  }
+  return normalizeCleaner(cleaner);
 }
 
-export async function getCleanerSettings(): Promise<CleanerSettings> {
-  try {
-    const cleaner = await getCleanerProfile();
+export async function getCleanerSettings(
+  cleanerId: string,
+  token?: string,
+): Promise<CleanerSettings> {
+  const cleaner = await getCleanerProfile(cleanerId, token);
 
-    const params = new URLSearchParams({
-      filter: `cleaner = "${CLEANER_ID}"`,
-      perPage: "1",
-    });
+  const params = new URLSearchParams({
+    filter: `cleaner = "${cleanerId}"`,
+    perPage: "1",
+  });
 
-    const preferenceData = await pocketBaseRequest<
-      PocketBaseList<CleanerPreferenceRecord>
-    >("/api/collections/cleaner_preferences/records", {
-      auth: "required",
-      params,
-    });
+  const preferenceData = await pocketBaseRequest<
+    PocketBaseList<CleanerPreferenceRecord>
+  >("/api/collections/cleaner_preferences/records", {
+    auth: token ? "none" : "required",
+    params,
+    token,
+  });
 
-    const preferences = normalizePreference(preferenceData.items?.[0]);
-
-    return {
-      cleaner,
-      preferences,
-    };
-  } catch {
-    return defaultSettings;
-  }
+  return {
+    cleaner,
+    preferences: normalizePreference(cleanerId, preferenceData.items?.[0]),
+  };
 }

@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { requireCleanerSession } from "@/src/lib/auth";
 import {
-  CLEANER_ID,
   getCleanerSettings,
   parseCsv,
   parseExceptions,
@@ -27,16 +27,18 @@ function numberValue(formData: FormData, key: string) {
 }
 
 export async function saveCleanerSettingsAction(formData: FormData) {
-  const existing = await getCleanerSettings();
+  const session = await requireCleanerSession();
+  const existing = await getCleanerSettings(session.cleanerId, session.token);
   const selectedDays = values(formData, "workingDays").filter((day) =>
     workingDays.includes(day),
   );
   const serviceLocations = parseCsv(value(formData, "serviceLocations"));
   const preferredServices = values(formData, "preferredServices");
 
-  await pocketBaseRequest(`/api/collections/cleaners/records/${CLEANER_ID}`, {
+  await pocketBaseRequest(`/api/collections/cleaners/records/${session.cleanerId}`, {
     method: "PATCH",
-    auth: "required",
+    auth: "none",
+    token: session.token,
     body: {
       name: value(formData, "name"),
       email: value(formData, "email"),
@@ -49,7 +51,7 @@ export async function saveCleanerSettingsAction(formData: FormData) {
   });
 
   const preferenceBody = {
-    cleaner: CLEANER_ID,
+    cleaner: session.cleanerId,
     working_days: selectedDays,
     available_start_time: value(formData, "availableStartTime"),
     available_end_time: value(formData, "availableEndTime"),
@@ -65,18 +67,20 @@ export async function saveCleanerSettingsAction(formData: FormData) {
       `/api/collections/cleaner_preferences/records/${existing.preferences.id}`,
       {
         method: "PATCH",
-        auth: "required",
+        auth: "none",
+        token: session.token,
         body: preferenceBody,
       },
     );
   } else {
     await pocketBaseRequest("/api/collections/cleaner_preferences/records", {
       method: "POST",
-      auth: "required",
+      auth: "none",
+      token: session.token,
       body: preferenceBody,
     });
   }
 
+  revalidatePath("/");
   revalidatePath("/settings");
 }
-

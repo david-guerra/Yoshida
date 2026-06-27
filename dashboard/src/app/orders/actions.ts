@@ -2,12 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireCleanerSession } from "@/src/lib/auth";
 import { pocketBaseRequest } from "@/src/lib/pocketbase";
-
-const CLEANER_ID =
-  process.env.NEXT_PUBLIC_CLEANER_ID ??
-  process.env.CLEANER_ID ??
-  "4bv09jvfeljswjj";
 
 type CreatedRecord = {
   id: string;
@@ -45,6 +41,7 @@ function toPocketBaseDate(date: Date) {
 
 export async function createOrderAction(formData: FormData) {
   let bookingId: string;
+  const session = await requireCleanerSession();
 
   try {
     const customerName = requiredValue(formData, "customerName");
@@ -66,7 +63,8 @@ export async function createOrderAction(formData: FormData) {
       "/api/collections/clients/records",
       {
         method: "POST",
-        auth: "required",
+        auth: "none",
+        token: session.token,
         body: {
           name: customerName,
           phone: customerPhone,
@@ -82,7 +80,8 @@ export async function createOrderAction(formData: FormData) {
       "/api/collections/addresses/records",
       {
         method: "POST",
-        auth: "required",
+        auth: "none",
+        token: session.token,
         body: {
           client: client.id,
           label: "Booking address",
@@ -100,11 +99,12 @@ export async function createOrderAction(formData: FormData) {
       "/api/collections/bookings/records",
       {
         method: "POST",
-        auth: "required",
+        auth: "none",
+        token: session.token,
         body: {
           client: client.id,
           address: address.id,
-          cleaner: CLEANER_ID,
+          cleaner: session.cleanerId,
           start_time: toPocketBaseDate(startTime),
           end_time: toPocketBaseDate(endTime),
           status: "requested",

@@ -1,5 +1,6 @@
 import DashboardHeader from "@/src/components/DashboardHeader";
 import { saveCleanerSettingsAction } from "@/src/app/settings/actions";
+import { requireCleanerSession } from "@/src/lib/auth";
 import {
   formatCsv,
   formatExceptions,
@@ -69,7 +70,7 @@ function SettingsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-[#e3e9e5] bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm sm:p-6">
       <h2 className="mb-5 text-xl font-semibold text-[#25312a]">{title}</h2>
       {children}
     </section>
@@ -77,16 +78,20 @@ function SettingsSection({
 }
 
 export default async function SettingsPage() {
-  const settings = await getCleanerSettings();
+  const session = await requireCleanerSession();
+  const settings = await getCleanerSettings(session.cleanerId, session.token);
   const { cleaner, preferences } = settings;
 
   return (
-    <main className="min-h-screen bg-[#f4f7f5] px-5 py-6 text-[#162018] sm:px-8">
+    <main className="min-h-screen bg-[#f7f8f4] px-4 py-5 text-[#162018] sm:px-8">
       <DashboardHeader active="settings" />
 
       <form action={saveCleanerSettingsAction} className="mx-auto max-w-6xl space-y-6">
         <div>
-          <h1 className="text-3xl font-semibold tracking-normal text-[#10231d]">
+          <p className="text-sm font-semibold text-[#3d6d58]">
+            Business profile
+          </p>
+          <h1 className="mt-2 text-4xl font-semibold tracking-normal text-[#10231d]">
             Settings
           </h1>
           <p className="mt-2 text-sm text-[#65756a]">
@@ -226,7 +231,7 @@ export default async function SettingsPage() {
 
         <div className="flex justify-end">
           <button
-            className="rounded-md bg-[#244f3b] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#1d3f30]"
+            className="rounded-full bg-[#244f3b] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#1d3f30]"
             type="submit"
           >
             Save settings

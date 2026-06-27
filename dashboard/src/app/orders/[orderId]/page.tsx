@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import DashboardHeader from "@/src/components/DashboardHeader";
+import { requireCleanerSession } from "@/src/lib/auth";
 import {
   formatAppointment,
   formatDate,
   formatTime,
   getOrder,
-  mockOrders,
   type OrderRecord,
 } from "@/src/lib/orders";
 
@@ -20,10 +20,12 @@ function StatusBadge({ order }: { order: OrderRecord }) {
   const color =
     order.tone === "green"
       ? "bg-[#edf8f1] text-[#3f8a5c]"
-      : "bg-[#fff4e8] text-[#b56c2f]";
+      : order.tone === "red"
+        ? "bg-[#fff0ef] text-[#b84b3e]"
+        : "bg-[#fff4e8] text-[#b56c2f]";
 
   return (
-    <span className={`rounded-md px-3 py-1 text-sm font-semibold ${color}`}>
+    <span className={`rounded-full px-3 py-1 text-sm font-semibold ${color}`}>
       {order.status}
     </span>
   );
@@ -31,20 +33,17 @@ function StatusBadge({ order }: { order: OrderRecord }) {
 
 function DetailItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-[#e3e9e5] bg-[#fbfcfb] px-4 py-3">
+    <div className="rounded-2xl border border-[#e1e6dd] bg-white px-4 py-3 shadow-sm">
       <p className="text-xs font-bold uppercase text-[#65756a]">{label}</p>
       <p className="mt-2 text-sm font-semibold text-[#25312a]">{value}</p>
     </div>
   );
 }
 
-export function generateStaticParams() {
-  return mockOrders.map((order) => ({ orderId: order.orderId }));
-}
-
 export default async function OrderDetailPage({ params }: OrderDetailPageProps) {
   const { orderId } = await params;
-  const detail = await getOrder(orderId);
+  const session = await requireCleanerSession();
+  const detail = await getOrder(orderId, session.cleanerId, session.token);
 
   if (!detail) {
     notFound();
@@ -53,10 +52,10 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
   const { order, notes, preferences } = detail;
 
   return (
-    <main className="min-h-screen bg-[#f4f7f5] px-5 py-6 text-[#162018] sm:px-8">
+    <main className="min-h-screen bg-[#f7f8f4] px-4 py-5 text-[#162018] sm:px-8">
       <DashboardHeader active="orders" />
 
-      <section className="mx-auto max-w-6xl rounded-lg border border-[#e3e9e5] bg-white px-5 py-7 shadow-sm sm:px-8">
+      <section className="mx-auto max-w-6xl">
         <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <Link
@@ -66,7 +65,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
               {"<"} Back to orders
             </Link>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-semibold tracking-normal text-[#10231d]">
+              <h1 className="text-4xl font-semibold tracking-normal text-[#10231d]">
                 {order.customerName}
               </h1>
               <StatusBadge order={order} />
@@ -76,7 +75,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             </p>
           </div>
 
-          <div className="rounded-md border border-[#e3e9e5] bg-[#fbfcfb] px-4 py-3 text-right">
+          <div className="rounded-2xl border border-[#e1e6dd] bg-white px-4 py-3 text-right shadow-sm">
             <p className="text-xs font-bold uppercase text-[#65756a]">
               Order ID
             </p>
@@ -105,7 +104,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-lg border border-[#e3e9e5] bg-[#fbfcfb] p-5">
+          <div className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-[#25312a]">
               Call summary
             </h2>
@@ -114,7 +113,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             </p>
           </div>
 
-          <div className="rounded-lg border border-[#e3e9e5] bg-[#fbfcfb] p-5">
+          <div className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-[#25312a]">
               Cleaner briefing
             </h2>
@@ -125,7 +124,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-3">
-          <div className="rounded-lg border border-[#e3e9e5] bg-white p-5">
+          <div className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-[#25312a]">
               Access notes
             </h2>
@@ -134,7 +133,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             </p>
           </div>
 
-          <div className="rounded-lg border border-[#e3e9e5] bg-white p-5">
+          <div className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-[#25312a]">
               Booking notes
             </h2>
@@ -154,7 +153,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             </div>
           </div>
 
-          <div className="rounded-lg border border-[#e3e9e5] bg-white p-5">
+          <div className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-[#25312a]">
               Client preferences
             </h2>
