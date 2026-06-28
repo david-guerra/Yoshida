@@ -492,36 +492,33 @@ async def my_agent(ctx: JobContext):
         "room": ctx.room.name,
     }
     caller_phone = caller_phone_from_job_metadata(ctx.job.metadata)
-    call_context = await preload_call_context(caller_phone)
+
+    # Kick off the PocketBase preload concurrently so it overlaps model warmup
+    # and the greeting instead of delaying the first spoken word.
+    preload_task = asyncio.create_task(preload_call_context(caller_phone))
 
     tts_options = {"model": "elevenlabs/eleven_flash_v2_5", "language": "de"}
     if elevenlabs_voice_id := os.getenv("ELEVENLABS_VOICE_ID"):
         tts_options["voice"] = elevenlabs_voice_id
 
-    # Set up a voice AI pipeline using LiveKit Inference, ElevenLabs, Deepgram, and the LiveKit turn detector
     session = AgentSession(
-        # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
-        # See all available models at https://docs.livekit.io/agents/models/stt/
         stt=inference.STT(model="deepgram/nova-3", language="multi"),
-        # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
-        # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
         tts=inference.TTS(**tts_options),
-        # The LiveKit turn detector determines when the user is done speaking and the agent should respond.
-        # TurnDetector is an end-of-turn model that listens to the user's audio directly, combining
-        # semantic understanding with acoustic cues (intonation, pitch, rhythm) for state-of-the-art accuracy.
-        # AgentSession supplies the required VAD automatically.
-        # See more at https://docs.livekit.io/agents/build/turns
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
         ),
-        # allow the LLM to generate a response while waiting for the end of turn
-        # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
         preemptive_generation=True,
     )
 
-    # Start the session, which initializes the voice pipeline and warms up the models
+    loading_context = {
+        "lookup_status": "loading",
+        "caller_phone": caller_phone,
+        "role": "unknown",
+    }
+    assistant = Assistant(caller_phone=caller_phone, call_context=loading_context)
+
     await session.start(
-        agent=Assistant(caller_phone=caller_phone, call_context=call_context),
+        agent=assistant,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
@@ -532,23 +529,29 @@ async def my_agent(ctx: JobContext):
         ),
     )
 
-    # # Add a virtual avatar to the session, if desired
-    # # For other providers, see https://docs.livekit.io/agents/models/avatar/
-    # avatar = anam.AvatarSession(
-    #     persona_config=anam.PersonaConfig(
-    #         name="...",
-    #         avatarId="...",  # See https://docs.livekit.io/agents/models/avatar/plugins/anam
-    #     ),
-    # )
-    # # Start the avatar and wait for it to join
-    # await avatar.start(session, room=ctx.room)
-
+    # Greet the caller in German immediately, without waiting on PocketBase.
     await session.generate_reply(
         instructions=(
             "Greet the caller in German. Say that this is the Reinigung front desk, "
             "ask how you can help with the cleaning request, and keep it to one short sentence."
         )
     )
+
+    # Context loaded during warmup + greeting. Fold it into the live agent.
+    call_context = await preload_task
+    await assistant.update_instructions(
+        load_caller_agent_prompt(caller_phone=caller_phone, call_context=call_context)
+    )
+
+    # A cleaner who calls in expects their briefing read. Context arrived after
+    # the greeting, so prompt the agent to read it now.
+    if call_context.get("role") == "cleaner":
+        await session.generate_reply(
+            instructions=(
+                "Read the cleaner briefing from the preloaded context verbatim, "
+                "in a natural spoken voice."
+            )
+        )
 
 
 if __name__ == "__main__":

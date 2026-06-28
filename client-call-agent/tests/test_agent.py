@@ -76,7 +76,7 @@ def test_agent_reads_caller_phone_from_livekit_job_metadata() -> None:
 
     assert "caller_phone_from_job_metadata(ctx.job.metadata)" in session_source
     assert (
-        "Assistant(caller_phone=caller_phone, call_context=call_context)"
+        "Assistant(caller_phone=caller_phone, call_context=loading_context)"
         in session_source
     )
 
@@ -85,11 +85,28 @@ def test_agent_preloads_call_context_before_starting_session() -> None:
     session_source = inspect.getsource(agent_module.my_agent)
 
     preload_index = session_source.index(
-        "call_context = await preload_call_context(caller_phone)"
+        "preload_task = asyncio.create_task(preload_call_context(caller_phone))"
     )
     start_index = session_source.index("await session.start(")
 
+    # Preload is kicked off (but not awaited) before the session starts, so it
+    # overlaps model warmup instead of delaying the greeting.
     assert preload_index < start_index
+    assert "call_context = await preload_task" in session_source
+
+
+def test_agent_folds_context_in_after_greeting() -> None:
+    session_source = inspect.getsource(agent_module.my_agent)
+
+    greeting_index = session_source.index("await session.generate_reply(")
+    update_index = session_source.index("await assistant.update_instructions(")
+    preload_await_index = session_source.index("call_context = await preload_task")
+
+    # Greeting fires first; context is awaited and folded in afterwards.
+    assert greeting_index < preload_await_index
+    assert preload_await_index < update_index
+    # A cleaner caller's briefing is read once context has landed.
+    assert 'call_context.get("role") == "cleaner"' in session_source
 
 
 def test_assistant_exposes_hybrid_pocketbase_tools() -> None:
