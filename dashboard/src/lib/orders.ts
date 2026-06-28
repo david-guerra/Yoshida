@@ -41,6 +41,7 @@ type PocketBaseNote = {
   id: string;
   type?: string;
   note?: string;
+  note_translated?: string;
   importance?: string;
   read_to_cleaner?: boolean;
 };
@@ -49,6 +50,7 @@ type PocketBasePreference = {
   id: string;
   type?: string;
   note?: string;
+  note_translated?: string;
   importance?: string;
   is_persistent?: boolean;
 };
@@ -83,7 +85,7 @@ async function getBookingNotes(orderId: string, token?: string) {
     data.items?.map((item) => ({
       id: item.id,
       type: item.type ?? "other",
-      note: item.note ?? "",
+      note: item.note_translated || item.note || "",
       importance: item.importance ?? "normal",
       readToCleaner: Boolean(item.read_to_cleaner),
     })) ?? []
@@ -109,7 +111,7 @@ async function getClientPreferences(customerId: string, token?: string) {
     data.items?.map((item) => ({
       id: item.id,
       type: item.type ?? "preference",
-      note: item.note ?? "",
+      note: item.note_translated || item.note || "",
       importance: item.importance ?? "normal",
       isPersistent: Boolean(item.is_persistent),
     })) ?? []
