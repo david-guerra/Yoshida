@@ -168,6 +168,7 @@ def test_prompt_requires_translated_notes_for_cleaner_card() -> None:
         "translate each free-text note into the cleaner's language" in instructions
     )
     assert "Keep the original `note` verbatim" in instructions
+    assert instructions.count('"note_translated"') >= 2
 
 
 @pytest.mark.asyncio
