@@ -428,7 +428,7 @@ class Assistant(Agent):
         if not isinstance(booking_request, dict):
             raise ToolError("suggest_cleaner requires a booking_request object.")
         await context.update(
-            "Ich pruefe kurz, welche Reinigungskraft zu dieser Anfrage passt."
+            "Ich prüfe kurz, welche Reinigungskraft zu dieser Anfrage passt."
         )
         async with context.with_filler(
             keyboard_filler_source(context),
@@ -471,7 +471,7 @@ class Assistant(Agent):
         payload = raw_arguments.get("payload")
         if not isinstance(payload, dict):
             raise ToolError("create_booking requires a payload object.")
-        await context.update("Ich speichere die Anfrage kurz fuer die Reinigungskraft.")
+        await context.update("Ich speichere die Anfrage kurz für die Reinigungskraft.")
         async with context.with_filler(
             keyboard_filler_source(context),
             delay=KEYBOARD_FILLER_DELAY_SECONDS,

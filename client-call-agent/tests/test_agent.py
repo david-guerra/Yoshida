@@ -98,6 +98,7 @@ def test_agent_preloads_call_context_before_starting_session() -> None:
 def test_agent_folds_context_in_after_greeting() -> None:
     session_source = inspect.getsource(agent_module.my_agent)
 
+    # Relies on the greeting being the first generate_reply in my_agent.
     greeting_index = session_source.index("await session.generate_reply(")
     update_index = session_source.index("await assistant.update_instructions(")
     preload_await_index = session_source.index("call_context = await preload_task")
