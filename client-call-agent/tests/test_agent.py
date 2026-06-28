@@ -164,9 +164,7 @@ def test_prompt_requires_translated_notes_for_cleaner_card() -> None:
     instructions = Assistant().instructions
 
     assert "note_translated" in instructions
-    assert (
-        "translate each free-text note into the cleaner's language" in instructions
-    )
+    assert "translate each free-text note into the cleaner's language" in instructions
     assert "Keep the original `note` verbatim" in instructions
     assert instructions.count('"note_translated"') >= 2
 
@@ -208,6 +206,14 @@ def test_pocketbase_tools_use_keyboard_filler() -> None:
     assert "keyboard_filler_source(context)" in suggest_source
     assert "context.with_filler" in create_source
     assert "keyboard_filler_source(context)" in create_source
+
+
+def test_pocketbase_tools_voice_a_spoken_cue() -> None:
+    suggest_source = inspect.getsource(Assistant.suggest_cleaner)
+    create_source = inspect.getsource(Assistant.create_booking)
+
+    assert "await context.update(" in suggest_source
+    assert "await context.update(" in create_source
 
 
 @pytest.mark.asyncio
