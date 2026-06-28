@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import math
@@ -344,12 +345,12 @@ async def preload_call_context(
             "identify_caller": identity,
         }
         if role == "cleaner":
-            context["cleaner_briefing"] = await pocketbase.get_cleaner_briefing(
-                caller_phone
+            briefing, preferences = await asyncio.gather(
+                pocketbase.get_cleaner_briefing(caller_phone),
+                pocketbase.get_cleaner_preferences(caller_phone),
             )
-            context["cleaner_preferences"] = await pocketbase.get_cleaner_preferences(
-                caller_phone
-            )
+            context["cleaner_briefing"] = briefing
+            context["cleaner_preferences"] = preferences
         return context
     except Exception as exc:
         logger.warning("PocketBase preload failed for caller %s: %s", caller_phone, exc)

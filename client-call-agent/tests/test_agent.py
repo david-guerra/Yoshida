@@ -303,11 +303,11 @@ async def test_preload_call_context_fetches_cleaner_briefing() -> None:
             },
         },
     }
-    assert calls == [
-        ("identify_caller", "+491700000001"),
+    assert calls[0] == ("identify_caller", "+491700000001")
+    assert set(calls[1:]) == {
         ("get_cleaner_briefing", "+491700000001"),
         ("get_cleaner_preferences", "+491700000001"),
-    ]
+    }
 
 
 def test_cleaner_summary_language_defaults_to_english() -> None:
