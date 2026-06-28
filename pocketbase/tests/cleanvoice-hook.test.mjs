@@ -20,7 +20,8 @@ test("hook builds localized call-in and booking text via the helper", () => {
 });
 
 test("hook persists note_translated on notes and preferences", () => {
-  assert.match(hookSource, /set\("note_translated"/);
+  const persists = hookSource.match(/set\("note_translated"/g) || [];
+  assert.ok(persists.length >= 2, `expected >= 2 note_translated sets, got ${persists.length}`);
 });
 
 test("hook no longer hardcodes English briefing labels", () => {
