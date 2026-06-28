@@ -108,8 +108,22 @@ test("buildCallInBriefing uses the cleaner-language template", () => {
     nextStart: "2026-06-30 10:00",
   });
   assert.match(out, /Merhaba Ayse/);
-  assert.match(out, /yaklasan rezervasyon/);
+  assert.match(out, /yaklaşan rezervasyon/);
   assert.doesNotMatch(out, /upcoming booking/);
+});
+
+test("buildBookingBriefing falls back to English labels for non-en/de/tr languages", () => {
+  const out = briefing.buildBookingBriefing({
+    lang: "ru",
+    serviceType: "deep_cleaning",
+    city: "Berlin",
+    notes: [{ note: "x", note_translated: "переведено" }],
+  });
+  // ru has no localized label set -> English labels, but the agent-translated
+  // note content still appears in the cleaner's language.
+  assert.match(out, /Service: deep_cleaning/);
+  assert.match(out, /Location: Berlin/);
+  assert.match(out, /переведено/);
 });
 
 test("buildCallInBriefing falls back to en for unsupported language", () => {
@@ -148,16 +162,16 @@ function normLang(lang) {
 
 const LABELS = {
   en: { service: "Service", location: "Location", requested: "Requested", until: "until" },
-  de: { service: "Leistung", location: "Ort", requested: "Gewuenscht", until: "bis" },
-  tr: { service: "Hizmet", location: "Konum", requested: "Istenen", until: "-" },
-  pl: { service: "Usluga", location: "Lokalizacja", requested: "Termin", until: "do" },
-  ru: { service: "Usluga", location: "Adres", requested: "Zapros", until: "do" },
-  uk: { service: "Posluha", location: "Adresa", requested: "Zapyt", until: "do" },
-  ar: { service: "Service", location: "Location", requested: "Requested", until: "-" },
+  de: { service: "Leistung", location: "Ort", requested: "Gewünscht", until: "bis" },
+  tr: { service: "Hizmet", location: "Konum", requested: "İstenen", until: "-" },
 };
 
+// en/de/tr are localized; every other supported language falls back to the
+// English label set. The agent still translates free-text notes into the
+// cleaner's language via note_translated, so note content stays in-language
+// even when labels fall back to English.
 function labels(lang) {
-  return LABELS[normLang(lang)];
+  return LABELS[normLang(lang)] || LABELS.en;
 }
 
 function noteText(note) {
@@ -185,10 +199,6 @@ const SUMMARY_LEAD = {
   en: (name, svc) => name + " requested " + svc + ".",
   de: (name, svc) => name + " hat " + svc + " angefragt.",
   tr: (name, svc) => name + ", " + svc + " talep etti.",
-  pl: (name, svc) => name + " poprosil o " + svc + ".",
-  ru: (name, svc) => name + " zaprosil " + svc + ".",
-  uk: (name, svc) => name + " zamovyv " + svc + ".",
-  ar: (name, svc) => name + " requested " + svc + ".",
 };
 
 function buildCustomerSummary(args) {
@@ -196,7 +206,8 @@ function buildCustomerSummary(args) {
   const L = normLang(a.lang);
   const parts = [];
   if (a.clientName) {
-    parts.push(SUMMARY_LEAD[L](a.clientName, a.serviceType || "a cleaning"));
+    const lead = SUMMARY_LEAD[L] || SUMMARY_LEAD.en;
+    parts.push(lead(a.clientName, a.serviceType || "a cleaning"));
   }
   (a.notes || []).forEach((n) => {
     const text = noteText(n);
@@ -212,33 +223,17 @@ const CALL_IN = {
   },
   de: {
     head: (name, n) => "Hallo " + name + ". Du hast " + n + " anstehende Buchung(en).",
-    next: (svc, t) => " Naechster Termin: " + svc + " am " + t + ".",
+    next: (svc, t) => " Nächster Termin: " + svc + " am " + t + ".",
   },
   tr: {
-    head: (name, n) => "Merhaba " + name + ". " + n + " yaklasan rezervasyonun var.",
-    next: (svc, t) => " Siradaki: " + svc + ", " + t + ".",
-  },
-  pl: {
-    head: (name, n) => "Czesc " + name + ". Masz " + n + " nadchodzacych rezerwacji.",
-    next: (svc, t) => " Nastepna: " + svc + " o " + t + ".",
-  },
-  ru: {
-    head: (name, n) => "Zdravstvujte, " + name + ". U vas " + n + " predstoyashchih zakazov.",
-    next: (svc, t) => " Sleduyushchij: " + svc + " v " + t + ".",
-  },
-  uk: {
-    head: (name, n) => "Vitayu, " + name + ". U vas " + n + " majbutnih zamovlen.",
-    next: (svc, t) => " Nastupne: " + svc + " o " + t + ".",
-  },
-  ar: {
-    head: (name, n) => "Hi " + name + ". You have " + n + " upcoming booking(s).",
-    next: (svc, t) => " Next: " + svc + " at " + t + ".",
+    head: (name, n) => "Merhaba " + name + ". " + n + " yaklaşan rezervasyonunuz var.",
+    next: (svc, t) => " Sıradaki: " + svc + ", " + t + ".",
   },
 };
 
 function buildCallInBriefing(args) {
   const a = args || {};
-  const tpl = CALL_IN[normLang(a.lang)];
+  const tpl = CALL_IN[normLang(a.lang)] || CALL_IN.en;
   const name = (a.name == null ? "" : String(a.name)).trim();
   const count = a.upcomingCount || 0;
   const head = tpl.head(name, count);
@@ -258,12 +253,12 @@ module.exports = {
 };
 ```
 
-> Note: label/template strings use ASCII transliterations to avoid encoding pitfalls in the Goja runtime and in tests. During the user review you may swap in proper diacritics/scripts (e.g. `Gewünscht`, Cyrillic, Arabic) — the structure does not change. `en` is always the fallback.
+> Note: en/de/tr are localized in proper Unicode (the file is UTF-8; Goja and Node both handle Unicode). Every other supported cleaner language falls back to the English label/template set, while the agent-supplied `note_translated` still carries note content in the cleaner's language. `en` is always the fallback. Do not add ASCII transliterations.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd /Users/davidguerra/Telli/CleanVoice && node --test pocketbase/tests/briefing.test.mjs`
-Expected: PASS — 7 tests pass.
+Expected: PASS — 8 tests pass.
 
 - [ ] **Step 5: Commit**
 
