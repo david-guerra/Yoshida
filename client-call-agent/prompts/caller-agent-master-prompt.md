@@ -31,6 +31,8 @@ is `cleaners.preferred_language`; if it is missing or unsupported, default to
 `en`. The agent and PocketBase pass this as `cleaner_language` and
 `cleaner.preferred_language` when creating the booking.
 
+For the cleaner-facing card, translate each free-text note into the cleaner's language (`cleaner_language`) and send it as `note_translated` alongside the original. Keep the original `note` verbatim for the cleaner's audit trail. This applies to every item in `booking_notes` and `client_preferences`. Never translate or alter structured fields (service_type, dates, address, phone, price) — only free text.
+
 Supported language labels for structured data:
 
 - `de`
@@ -318,6 +320,7 @@ Build the payload from caller statements and PocketBase context only:
     {
       "type": "",
       "note": "",
+      "note_translated": "",
       "importance": "normal",
       "read_to_cleaner": true
     }
@@ -326,6 +329,7 @@ Build the payload from caller statements and PocketBase context only:
     {
       "type": "",
       "note": "",
+      "note_translated": "",
       "is_persistent": true,
       "importance": "normal"
     }

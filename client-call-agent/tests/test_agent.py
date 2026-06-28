@@ -160,6 +160,16 @@ def test_prompt_uses_pocketbase_instead_of_demo_cleaner_profile() -> None:
     assert "from forty-five euros" not in instructions
 
 
+def test_prompt_requires_translated_notes_for_cleaner_card() -> None:
+    instructions = Assistant().instructions
+
+    assert "note_translated" in instructions
+    assert (
+        "translate each free-text note into the cleaner's language" in instructions
+    )
+    assert "Keep the original `note` verbatim" in instructions
+
+
 @pytest.mark.asyncio
 async def test_keyboard_filler_source_plays_generated_audio() -> None:
     calls = []
