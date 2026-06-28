@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireCleanerSession } from "@/src/lib/auth";
 import {
   getCleanerSettings,
+  normalizeCleanerLanguage,
   parseCsv,
   parseExceptions,
   workingDays,
@@ -27,60 +29,71 @@ function numberValue(formData: FormData, key: string) {
 }
 
 export async function saveCleanerSettingsAction(formData: FormData) {
+  // Resolve the session outside the try so its redirect-to-login isn't caught.
   const session = await requireCleanerSession();
-  const existing = await getCleanerSettings(session.cleanerId, session.token);
-  const selectedDays = values(formData, "workingDays").filter((day) =>
-    workingDays.includes(day),
-  );
-  const serviceLocations = parseCsv(value(formData, "serviceLocations"));
-  const preferredServices = values(formData, "preferredServices");
 
-  await pocketBaseRequest(`/api/collections/cleaners/records/${session.cleanerId}`, {
-    method: "PATCH",
-    auth: "none",
-    token: session.token,
-    body: {
-      name: value(formData, "name"),
-      email: value(formData, "email"),
-      phone: value(formData, "phone"),
-      preferred_language: value(formData, "preferredLanguage"),
-      service_areas: serviceLocations,
-      skills: preferredServices,
-      active: true,
-    },
-  });
+  try {
+    const existing = await getCleanerSettings(session.cleanerId, session.token);
+    const selectedDays = values(formData, "workingDays").filter((day) =>
+      workingDays.includes(day),
+    );
+    const serviceLocations = parseCsv(value(formData, "serviceLocations"));
+    const preferredServices = values(formData, "preferredServices");
 
-  const preferenceBody = {
-    cleaner: session.cleanerId,
-    working_days: selectedDays,
-    available_start_time: value(formData, "availableStartTime"),
-    available_end_time: value(formData, "availableEndTime"),
-    minimum_budget: numberValue(formData, "minimumBudget"),
-    service_locations: serviceLocations,
-    preferred_services: preferredServices,
-    business_rules: value(formData, "businessRules"),
-    exceptions: parseExceptions(value(formData, "exceptions")),
-  };
+    await pocketBaseRequest(`/api/collections/cleaners/records/${session.cleanerId}`, {
+      method: "PATCH",
+      auth: "none",
+      token: session.token,
+      body: {
+        name: value(formData, "name"),
+        email: value(formData, "email"),
+        phone: value(formData, "phone"),
+        preferred_language: normalizeCleanerLanguage(
+          value(formData, "preferredLanguage"),
+        ),
+        service_areas: serviceLocations,
+        skills: preferredServices,
+        active: true,
+      },
+    });
 
-  if (existing.preferences.id) {
-    await pocketBaseRequest(
-      `/api/collections/cleaner_preferences/records/${existing.preferences.id}`,
-      {
-        method: "PATCH",
+    const preferenceBody = {
+      cleaner: session.cleanerId,
+      working_days: selectedDays,
+      available_start_time: value(formData, "availableStartTime"),
+      available_end_time: value(formData, "availableEndTime"),
+      minimum_budget: numberValue(formData, "minimumBudget"),
+      service_locations: serviceLocations,
+      preferred_services: preferredServices,
+      business_rules: value(formData, "businessRules"),
+      exceptions: parseExceptions(value(formData, "exceptions")),
+    };
+
+    if (existing.preferences.id) {
+      await pocketBaseRequest(
+        `/api/collections/cleaner_preferences/records/${existing.preferences.id}`,
+        {
+          method: "PATCH",
+          auth: "none",
+          token: session.token,
+          body: preferenceBody,
+        },
+      );
+    } else {
+      await pocketBaseRequest("/api/collections/cleaner_preferences/records", {
+        method: "POST",
         auth: "none",
         token: session.token,
         body: preferenceBody,
-      },
-    );
-  } else {
-    await pocketBaseRequest("/api/collections/cleaner_preferences/records", {
-      method: "POST",
-      auth: "none",
-      token: session.token,
-      body: preferenceBody,
-    });
+      });
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Could not save settings.";
+    redirect(`/settings?error=${encodeURIComponent(message)}`);
   }
 
   revalidatePath("/");
   revalidatePath("/settings");
+  redirect("/settings?saved=1");
 }

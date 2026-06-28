@@ -112,6 +112,15 @@ def test_prompt_describes_pocketbase_role_flow() -> None:
     assert "read the briefing field verbatim" in instructions
 
 
+def test_prompt_requires_cleaner_language_for_summaries() -> None:
+    instructions = Assistant().instructions
+
+    assert "cleaner-facing summaries" in instructions
+    assert "cleaners.preferred_language" in instructions
+    assert "default to `en`" in instructions
+    assert "cleaner_language" in instructions
+
+
 def test_prompt_uses_preloaded_context_without_startup_lookup_tool() -> None:
     instructions = Assistant(
         caller_phone="+491700000002",
@@ -282,6 +291,61 @@ async def test_preload_call_context_fetches_cleaner_briefing() -> None:
         ("get_cleaner_briefing", "+491700000001"),
         ("get_cleaner_preferences", "+491700000001"),
     ]
+
+
+def test_cleaner_summary_language_defaults_to_english() -> None:
+    assert agent_module.cleaner_summary_language(None) == "en"
+    assert agent_module.cleaner_summary_language("") == "en"
+    assert agent_module.cleaner_summary_language("klingon") == "en"
+    assert agent_module.cleaner_summary_language("TR") == "tr"
+
+
+@pytest.mark.asyncio
+async def test_booking_payload_gets_cleaner_language_from_pocketbase() -> None:
+    calls = []
+    payload = {
+        "caller_phone": "+491700000002",
+        "cleaner_phone": "+491700000001",
+        "client": {"name": "Anna Weber", "preferred_language": "de"},
+        "booking": {"service_type": "regular_cleaning"},
+    }
+
+    class FakePocketBaseClient:
+        async def get_cleaner_preferences(self, caller_phone: str):
+            calls.append(("get_cleaner_preferences", caller_phone))
+            return {
+                "ok": True,
+                "cleaner": {"preferred_language": "tr"},
+                "preferences": {"service_locations": ["Berlin"]},
+            }
+
+    enriched = await agent_module.enrich_booking_payload_with_cleaner_language(
+        payload, FakePocketBaseClient()
+    )
+
+    assert enriched is not payload
+    assert enriched["cleaner_language"] == "tr"
+    assert enriched["cleaner"]["preferred_language"] == "tr"
+    assert payload.get("cleaner_language") is None
+    assert calls == [("get_cleaner_preferences", "+491700000001")]
+
+
+@pytest.mark.asyncio
+async def test_booking_payload_defaults_cleaner_language_to_english() -> None:
+    class FakePocketBaseClient:
+        async def get_cleaner_preferences(self, caller_phone: str):
+            return {
+                "ok": True,
+                "cleaner": {"preferred_language": "unsupported"},
+            }
+
+    enriched = await agent_module.enrich_booking_payload_with_cleaner_language(
+        {"caller_phone": "+491700000002", "cleaner_phone": "+491700000001"},
+        FakePocketBaseClient(),
+    )
+
+    assert enriched["cleaner_language"] == "en"
+    assert enriched["cleaner"]["preferred_language"] == "en"
 
 
 @pytest.mark.asyncio
@@ -528,7 +592,11 @@ async def test_pocketbase_create_booking_posts_payload_with_json_headers() -> No
                 "ngrok-skip-browser-warning": "true",
                 "Content-Type": "application/json",
             },
-            payload,
+            {
+                **payload,
+                "cleaner": {"preferred_language": "en"},
+                "cleaner_language": "en",
+            },
         )
     ]
 

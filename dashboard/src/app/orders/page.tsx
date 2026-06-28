@@ -1,5 +1,10 @@
 import Link from "next/link";
-import DashboardHeader from "@/src/components/DashboardHeader";
+import AppShell from "@/src/components/AppShell";
+import Badge, { statusTone } from "@/src/components/ui/Badge";
+import { buttonClass } from "@/src/components/ui/Button";
+import { InsetGroup, ListRow } from "@/src/components/ui/Card";
+import SegmentedControl from "@/src/components/ui/SegmentedControl";
+import { PlusIcon } from "@/src/components/ui/icons";
 import { requireCleanerSession } from "@/src/lib/auth";
 import {
   formatAppointment,
@@ -7,111 +12,115 @@ import {
   type OrderRecord,
 } from "@/src/lib/orders";
 
-function StatusBadge({ order }: { order: OrderRecord }) {
-  const color =
-    order.tone === "green"
-      ? "bg-[#edf8f1] text-[#3f8a5c]"
-      : "bg-[#fff4e8] text-[#b56c2f]";
+type OrdersSearchParams = Promise<{
+  view?: string | string[] | undefined;
+}>;
 
-  return (
-    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${color}`}>
-      {order.status}
-    </span>
+type OrderView = "all" | "future" | "past" | "needs-approval";
+
+const orderFilters: { label: string; href: string; view: OrderView }[] = [
+  { label: "All", href: "/orders", view: "all" },
+  {
+    label: "Needs approval",
+    href: "/orders?view=needs-approval",
+    view: "needs-approval",
+  },
+  { label: "Upcoming", href: "/orders?view=future", view: "future" },
+  { label: "Past", href: "/orders?view=past", view: "past" },
+];
+
+function firstSearchValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function normalizeOrderView(value: string | undefined): OrderView {
+  if (value === "future" || value === "past" || value === "needs-approval") {
+    return value;
+  }
+
+  return "all";
+}
+
+function needsApproval(order: OrderRecord) {
+  const status = order.status.toLowerCase();
+
+  return ["needs approval", "requested", "tentative"].some((reviewStatus) =>
+    status.includes(reviewStatus),
   );
 }
 
-export default async function OrdersPage() {
+function filterOrders(orders: OrderRecord[], activeView: OrderView) {
+  if (activeView === "past") {
+    return orders.filter((order) => order.category === "past");
+  }
+
+  if (activeView === "future") {
+    return orders.filter((order) => order.category === "upcoming");
+  }
+
+  if (activeView === "needs-approval") {
+    return orders.filter(needsApproval);
+  }
+
+  return orders;
+}
+
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: OrdersSearchParams;
+}) {
   const session = await requireCleanerSession();
   const orders = await getOrders(session.cleanerId, session.token);
+  const activeView = normalizeOrderView(
+    firstSearchValue((await searchParams).view),
+  );
+  const filteredOrders = filterOrders(orders, activeView);
 
   return (
-    <main className="min-h-screen bg-[#f7f8f4] px-4 py-5 text-[#162018] sm:px-8">
-      <DashboardHeader active="orders" />
+    <AppShell
+      active="orders"
+      title="Orders"
+      subtitle="Every call the voice agent handled, qualified, and saved to PocketBase."
+      actions={
+        <Link className={buttonClass("filled", "sm")} href="/orders/new">
+          <PlusIcon className="h-4 w-4" />
+          New order
+        </Link>
+      }
+    >
+      <div className="mb-5 overflow-x-auto pb-1">
+        <SegmentedControl
+          segments={orderFilters.map((filter) => ({
+            label: filter.label,
+            href: filter.href,
+            active: filter.view === activeView,
+          }))}
+        />
+      </div>
 
-      <section className="mx-auto max-w-6xl">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-[#3d6d58]">
-              Booking history
-            </p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-normal text-[#10231d]">
-              Orders
-            </h1>
-            <p className="mt-2 text-sm text-[#65756a]">
-              Database of calls handled by the voice agent.
-            </p>
+      <InsetGroup count={`${filteredOrders.length}`}>
+        {filteredOrders.length ? (
+          filteredOrders.map((order) => (
+            <ListRow
+              key={order.orderId}
+              href={`/orders/${order.orderId}`}
+              title={order.customerName}
+              subtitle={`${formatAppointment(order)} · ${order.location}`}
+              detail={`${order.service} · ${order.price}`}
+              trailing={
+                <Badge tone={statusTone(order.tone)}>{order.status}</Badge>
+              }
+            />
+          ))
+        ) : (
+          <div className="px-4 py-8 text-center text-[14px] text-secondary">
+            {orders.length
+              ? "No orders match this filter yet."
+              : "No PocketBase bookings are assigned to this cleaner yet."}
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Link
-              className="rounded-full bg-[#244f3b] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#1d3f30]"
-              href="/orders/new"
-            >
-              New order
-            </Link>
-            <button className="rounded-full border border-[#dfe7e2] bg-white px-4 py-2 text-sm font-semibold text-[#344238] shadow-sm hover:bg-[#f8fbf9]">
-              All calls
-            </button>
-            <button className="rounded-full border border-[#dfe7e2] bg-white px-4 py-2 text-sm font-semibold text-[#344238] shadow-sm hover:bg-[#f8fbf9]">
-              Needs approval
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-hidden rounded-2xl border border-[#e1e6dd] bg-white shadow-sm">
-          <div className="hidden grid-cols-[100px_1.1fr_1fr_1fr_90px_120px] gap-4 border-b border-[#e3e9e5] bg-[#f8fbf9] px-4 py-3 text-xs font-bold uppercase text-[#65756a] lg:grid">
-            <span>ID</span>
-            <span>Caller</span>
-            <span>Appointment</span>
-            <span>Service</span>
-            <span>Price</span>
-            <span>Status</span>
-          </div>
-
-          <div className="divide-y divide-[#edf1ee]">
-            {orders.length ? (
-              orders.map((order) => (
-                <Link
-                  className="grid w-full gap-3 px-4 py-5 text-left transition hover:bg-[#f8fbf9] lg:grid-cols-[100px_1.1fr_1fr_1fr_90px_120px] lg:items-center lg:gap-4"
-                  href={`/orders/${order.orderId}`}
-                  key={order.orderId}
-                >
-                  <span className="text-sm font-semibold text-[#65756a]">
-                    {order.orderId}
-                  </span>
-                  <span>
-                    <span className="block font-semibold text-[#25312a]">
-                      {order.customerName}
-                    </span>
-                    <span className="mt-1 block text-sm text-[#65756a]">
-                      Customer {order.customerId}
-                    </span>
-                  </span>
-                  <span className="text-sm font-medium text-[#344238]">
-                    {formatAppointment(order)}
-                  </span>
-                  <span>
-                    <span className="block text-sm font-medium text-[#344238]">
-                      {order.service}
-                    </span>
-                    <span className="mt-1 block text-sm text-[#65756a]">
-                      {order.location}
-                    </span>
-                  </span>
-                  <span className="text-sm font-semibold text-[#25312a]">
-                    {order.price}
-                  </span>
-                  <StatusBadge order={order} />
-                </Link>
-              ))
-            ) : (
-              <p className="px-4 py-5 text-sm text-[#65756a]">
-                No PocketBase bookings are assigned to this cleaner yet.
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-    </main>
+        )}
+      </InsetGroup>
+    </AppShell>
   );
 }

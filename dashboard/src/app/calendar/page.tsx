@@ -1,5 +1,8 @@
+import Link from "next/link";
+import AppShell from "@/src/components/AppShell";
 import CalendarCard from "@/src/components/CalendarCard";
-import DashboardHeader from "@/src/components/DashboardHeader";
+import { buttonClass } from "@/src/components/ui/Button";
+import { PlusIcon } from "@/src/components/ui/icons";
 import { requireCleanerSession } from "@/src/lib/auth";
 import { getOrders } from "@/src/lib/orders";
 
@@ -8,12 +11,17 @@ export default async function CalendarPage() {
   const orders = await getOrders(session.cleanerId, session.token);
 
   return (
-    <main className="min-h-screen bg-[#f7f8f4] px-4 py-5 text-[#162018] sm:px-8">
-      <DashboardHeader active="calendar" />
-
-      <section className="mx-auto max-w-6xl">
-        <CalendarCard orders={orders} />
-      </section>
-    </main>
+    <AppShell
+      active="calendar"
+      title="Calendar"
+      actions={
+        <Link className={buttonClass("filled", "sm")} href="/orders/new">
+          <PlusIcon className="h-4 w-4" />
+          New booking
+        </Link>
+      }
+    >
+      <CalendarCard orders={orders} />
+    </AppShell>
   );
 }

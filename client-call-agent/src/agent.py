@@ -34,6 +34,8 @@ PROMPT_PATH = (
 DEFAULT_POCKETBASE_URL = "https://snowiness-difficult-finer.ngrok-free.dev"
 DEFAULT_LIVEKIT_INFERENCE_LLM_MODEL = "deepseek-ai/deepseek-v4-pro"
 DEFAULT_SIMULATED_CALLER_PHONE = "+491700000002"
+DEFAULT_CLEANER_LANGUAGE = "en"
+SUPPORTED_CLEANER_LANGUAGES = {"ar", "de", "en", "pl", "ru", "tr", "uk"}
 KEYBOARD_FILLER_TRANSCRIPT = "[Tastaturgeraeusch]"
 KEYBOARD_FILLER_SAMPLE_RATE = 24000
 KEYBOARD_FILLER_DELAY_SECONDS = 0.3
@@ -67,6 +69,66 @@ def caller_phone_from_job_metadata(metadata: str | None) -> str:
 
 def _format_call_context(call_context: dict[str, Any]) -> str:
     return json.dumps(call_context, ensure_ascii=False, sort_keys=True, indent=2)
+
+
+def _valid_cleaner_language(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    language = value.strip().lower()
+    return language if language in SUPPORTED_CLEANER_LANGUAGES else None
+
+
+def cleaner_summary_language(value: Any) -> str:
+    return _valid_cleaner_language(value) or DEFAULT_CLEANER_LANGUAGE
+
+
+def _language_from_mapping(data: Any) -> str | None:
+    if not isinstance(data, dict):
+        return None
+
+    direct_fields = ("cleaner_language", "preferred_language", "language")
+    for field in direct_fields:
+        if language := _valid_cleaner_language(data.get(field)):
+            return language
+
+    for parent_key in ("cleaner", "preferences"):
+        nested = data.get(parent_key)
+        if isinstance(nested, dict):
+            for field in ("preferred_language", "language", "cleaner_language"):
+                if language := _valid_cleaner_language(nested.get(field)):
+                    return language
+
+    return None
+
+
+async def enrich_booking_payload_with_cleaner_language(
+    payload: dict[str, Any], pocketbase: Any
+) -> dict[str, Any]:
+    enriched = dict(payload)
+    language = _language_from_mapping(enriched)
+    cleaner_phone = enriched.get("cleaner_phone")
+
+    if language is None and isinstance(cleaner_phone, str) and cleaner_phone.strip():
+        try:
+            preferences = await pocketbase.get_cleaner_preferences(cleaner_phone)
+        except Exception as exc:
+            logger.warning(
+                "Cleaner language lookup failed for cleaner %s: %s",
+                cleaner_phone,
+                exc,
+            )
+            preferences = {}
+        language = _language_from_mapping(preferences)
+
+    language = language or DEFAULT_CLEANER_LANGUAGE
+    cleaner = (
+        dict(enriched["cleaner"]) if isinstance(enriched.get("cleaner"), dict) else {}
+    )
+    cleaner["preferred_language"] = language
+    enriched["cleaner"] = cleaner
+    enriched["cleaner_language"] = language
+
+    return enriched
 
 
 def build_keyboard_filler_frames() -> list[rtc.AudioFrame]:
@@ -254,6 +316,7 @@ class PocketBaseClient:
             return await self._json_or_tool_error(response, "suggest_cleaner")
 
     async def create_booking(self, payload: dict[str, Any]) -> dict[str, Any]:
+        payload = await enrich_booking_payload_with_cleaner_language(payload, self)
         async with self.session.post(
             f"{self.base_url}/api/cleanvoice/create-booking",
             headers={
@@ -319,7 +382,7 @@ class Assistant(Agent):
     async def get_cleaner_preferences(
         self, context: RunContext, caller_phone: str
     ) -> dict[str, Any]:
-        """Get cleaner working hours, preferred services, service locations, and business rules.
+        """Get cleaner language, working hours, preferred services, service locations, and business rules.
 
         Use this only when a cleaner caller asks about their own stored profile
         context or when the preloaded cleaner preferences are unavailable.
@@ -378,7 +441,8 @@ class Assistant(Agent):
             "description": (
                 "Create a tentative cleaning booking in PocketBase after collecting "
                 "the caller phone, optional cleaner_phone from suggest_cleaner, "
-                "client, address, booking, booking_notes, and client_preferences fields."
+                "cleaner_language, client, address, booking, booking_notes, "
+                "and client_preferences fields."
             ),
             "parameters": {
                 "type": "object",

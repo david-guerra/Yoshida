@@ -34,7 +34,9 @@ export async function GET(req: NextRequest) {
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
   const liveKitUrl = process.env.LIVEKIT_URL ?? process.env.NEXT_PUBLIC_LIVEKIT_URL;
-  const callerPhone = simulatedCallerPhone();
+  // Let the browser simulate calling from any number; fall back to the env default.
+  const callerPhone =
+    req.nextUrl.searchParams.get("phone")?.trim() || simulatedCallerPhone();
 
   if (!apiKey || !apiSecret || !liveKitUrl) {
     return NextResponse.json(

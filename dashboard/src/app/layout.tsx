@@ -1,20 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "CleanVoice Dashboard",
-  description: "Cleaner call and booking dashboard",
+  title: "Cleaner Desk",
+  description: "Voice-agent front desk for cleaners — calls, bookings, clients.",
 };
 
 export default function RootLayout({
@@ -23,13 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full bg-background text-foreground">
-        {children}
-      </body>
+    <html lang="en" className="h-full antialiased">
+      <body className="min-h-full bg-canvas text-label">{children}</body>
     </html>
   );
 }

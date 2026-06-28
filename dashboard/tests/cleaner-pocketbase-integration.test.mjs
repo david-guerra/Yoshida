@@ -26,6 +26,14 @@ const liveDashboardSource = readFileSync(
   new URL("../src/components/LiveOrdersDashboard.tsx", import.meta.url),
   "utf8",
 );
+const cleanerPreferencesSource = readFileSync(
+  new URL("../src/lib/cleanerPreferences.ts", import.meta.url),
+  "utf8",
+);
+const settingsActionsSource = readFileSync(
+  new URL("../src/app/settings/actions.ts", import.meta.url),
+  "utf8",
+);
 
 test("cleaner login authenticates against PocketBase users and stores a cleaner session", () => {
   assert.match(
@@ -68,5 +76,15 @@ test("dashboard public PocketBase URL falls back to the shared server env", () =
   assert.match(
     pocketBaseSource,
     /export function getPublicPocketBaseUrl\(\) \{[\s\S]*process\.env\.NEXT_PUBLIC_POCKETBASE_URL[\s\S]*process\.env\.POCKETBASE_URL[\s\S]*"http:\/\/127\.0\.0\.1:8090"[\s\S]*\}/,
+  );
+});
+
+test("cleaner language is stored on the cleaner record and defaults to English", () => {
+  assert.match(cleanerPreferencesSource, /export function normalizeCleanerLanguage/);
+  assert.match(cleanerPreferencesSource, /preferred_language:\s*normalizeCleanerLanguage/);
+  assert.match(settingsActionsSource, /normalizeCleanerLanguage/);
+  assert.match(
+    settingsActionsSource,
+    /preferred_language:\s*normalizeCleanerLanguage\(\s*value\(formData,\s*"preferredLanguage"\),\s*\)/,
   );
 });

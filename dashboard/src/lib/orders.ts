@@ -62,12 +62,23 @@ export async function getOrders(cleanerId: string, token?: string) {
     expand: "client,address,cleaner",
   });
 
-  const data = await pocketBaseRequest<PocketBaseList<PocketBaseBooking>>(
-    "/api/collections/bookings/records",
-    { auth: token ? "none" : "optional", params, token },
-  );
+  try {
+    const data = await pocketBaseRequest<PocketBaseList<PocketBaseBooking>>(
+      "/api/collections/bookings/records",
+      { auth: token ? "none" : "optional", params, token },
+    );
 
-  return (data.items ?? []).map(mapBooking);
+    return (data.items ?? []).map(mapBooking);
+  } catch (error) {
+    // PocketBase unreachable/misconfigured: render an empty dashboard rather
+    // than crashing the route. The realtime sync indicator surfaces the outage.
+    console.warn(
+      `[dashboard] Could not load bookings from PocketBase: ${
+        (error as Error).message.split("\n")[0]
+      }`,
+    );
+    return [];
+  }
 }
 
 async function getBookingNotes(orderId: string, token?: string) {
