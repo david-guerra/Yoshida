@@ -1,6 +1,8 @@
 import inspect
 import os
 import textwrap
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 from livekit.agents import AgentSession, inference, llm
@@ -187,43 +189,40 @@ def test_prompt_requires_translated_notes_for_cleaner_card() -> None:
     assert instructions.count('"note_translated"') >= 2
 
 
-@pytest.mark.asyncio
-async def test_keyboard_filler_source_plays_generated_audio() -> None:
-    calls = []
+def test_agent_plays_builtin_keyboard_thinking_sound() -> None:
+    session_source = inspect.getsource(agent_module.my_agent)
 
-    class FakeSession:
-        def say(self, text, *, audio, add_to_chat_ctx):
-            calls.append((text, audio, add_to_chat_ctx))
-            return "speech-handle"
+    # LiveKit's built-in keyboard typing plays as a thinking sound for the full
+    # duration of any tool call, replacing the hand-rolled synthetic filler.
+    assert "BackgroundAudioPlayer(" in session_source
+    assert "thinking_sound=" in session_source
+    assert "BuiltinAudioClip.KEYBOARD_TYPING" in session_source
 
-    class FakeContext:
-        session = FakeSession()
-
-    source = agent_module.keyboard_filler_source(FakeContext())
-    handle = source(0)
-
-    assert handle == "speech-handle"
-    assert calls[0][0] == agent_module.KEYBOARD_FILLER_TRANSCRIPT
-    assert calls[0][2] is False
-
-    frames = []
-    async for frame in calls[0][1]:
-        frames.append(frame)
-
-    assert frames
-    assert frames[0].sample_rate == agent_module.KEYBOARD_FILLER_SAMPLE_RATE
-    assert frames[0].num_channels == 1
-    assert any(bytes(frame.data) for frame in frames)
+    # Started after the session is started.
+    start_index = session_source.index("await session.start(")
+    audio_index = session_source.index("background_audio.start(")
+    assert start_index < audio_index
 
 
-def test_pocketbase_tools_use_keyboard_filler() -> None:
+def test_pocketbase_tools_voice_cue_without_manual_filler() -> None:
     suggest_source = inspect.getsource(Assistant.suggest_cleaner)
     create_source = inspect.getsource(Assistant.create_booking)
 
-    assert "context.with_filler" in suggest_source
-    assert "keyboard_filler_source(context)" in suggest_source
-    assert "context.with_filler" in create_source
-    assert "keyboard_filler_source(context)" in create_source
+    # The spoken cue stays; the per-tool manual filler is gone now that the
+    # background audio player handles the thinking sound globally.
+    assert "await context.update(" in suggest_source
+    assert "await context.update(" in create_source
+    assert "with_filler" not in suggest_source
+    assert "with_filler" not in create_source
+
+
+def test_prompt_grounds_current_date() -> None:
+    instructions = Assistant().instructions
+    current_year = str(datetime.now(ZoneInfo(agent_module.AGENT_TIMEZONE)).year)
+
+    # The runtime prompt anchors today's date so the agent books the right year.
+    assert "Current Date And Time" in instructions
+    assert current_year in instructions
 
 
 def test_pocketbase_tools_voice_a_spoken_cue() -> None:

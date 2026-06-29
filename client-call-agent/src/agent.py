@@ -1,18 +1,21 @@
 import asyncio
 import json
 import logging
-import math
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    AudioConfig,
+    BackgroundAudioPlayer,
+    BuiltinAudioClip,
     JobContext,
     RunContext,
     TurnHandlingOptions,
@@ -37,11 +40,7 @@ DEFAULT_LIVEKIT_INFERENCE_LLM_MODEL = "deepseek-ai/deepseek-v4-pro"
 DEFAULT_SIMULATED_CALLER_PHONE = "+491700000002"
 DEFAULT_CLEANER_LANGUAGE = "en"
 SUPPORTED_CLEANER_LANGUAGES = {"ar", "de", "en", "pl", "ru", "tr", "uk"}
-KEYBOARD_FILLER_TRANSCRIPT = "[Tastaturgeraeusch]"
-KEYBOARD_FILLER_SAMPLE_RATE = 24000
-KEYBOARD_FILLER_DELAY_SECONDS = 0.3
-KEYBOARD_FILLER_INTERVAL_SECONDS = 1.6
-KEYBOARD_FILLER_MAX_STEPS = 3
+AGENT_TIMEZONE = "Europe/Berlin"
 
 
 def cleanvoice_pocketbase_url() -> str:
@@ -132,85 +131,6 @@ async def enrich_booking_payload_with_cleaner_language(
     return enriched
 
 
-def build_keyboard_filler_frames() -> list[rtc.AudioFrame]:
-    sample_rate = KEYBOARD_FILLER_SAMPLE_RATE
-    duration_seconds = 1.25
-    frame_samples = int(sample_rate * 0.02)
-    total_samples = int(sample_rate * duration_seconds)
-    click_offsets = [
-        0.02,
-        0.09,
-        0.15,
-        0.24,
-        0.33,
-        0.41,
-        0.50,
-        0.57,
-        0.67,
-        0.75,
-        0.86,
-        0.95,
-        1.05,
-        1.15,
-    ]
-    click_samples = [int(offset * sample_rate) for offset in click_offsets]
-    click_duration = int(sample_rate * 0.028)
-    pcm = bytearray()
-
-    for sample_index in range(total_samples):
-        value = 0.0
-        for click_index, click_start in enumerate(click_samples):
-            age = sample_index - click_start
-            if age < 0 or age >= click_duration:
-                continue
-
-            t = age / sample_rate
-            envelope = math.exp(-t * 135) * (1 - age / click_duration)
-            tone = math.sin(2 * math.pi * 2300 * t) + 0.35 * math.sin(
-                2 * math.pi * 4100 * t
-            )
-            noise_seed = (sample_index * 1103515245 + click_index * 12345) & 0x7FFFFFFF
-            noise = ((noise_seed % 65536) / 32768) - 1
-            value += envelope * (0.18 * tone + 0.08 * noise)
-
-        clamped = max(-0.3, min(0.3, value))
-        pcm.extend(int(clamped * 32767).to_bytes(2, "little", signed=True))
-
-    frames: list[rtc.AudioFrame] = []
-    bytes_per_sample = 2
-    frame_bytes = frame_samples * bytes_per_sample
-    for offset in range(0, len(pcm), frame_bytes):
-        chunk = bytes(pcm[offset : offset + frame_bytes])
-        if len(chunk) < frame_bytes:
-            chunk += b"\x00" * (frame_bytes - len(chunk))
-        frames.append(
-            rtc.AudioFrame(
-                chunk,
-                sample_rate=sample_rate,
-                num_channels=1,
-                samples_per_channel=frame_samples,
-            )
-        )
-
-    return frames
-
-
-async def keyboard_filler_audio():
-    for frame in build_keyboard_filler_frames():
-        yield frame
-
-
-def keyboard_filler_source(context: RunContext):
-    def source(_step: int):
-        return context.session.say(
-            KEYBOARD_FILLER_TRANSCRIPT,
-            audio=keyboard_filler_audio(),
-            add_to_chat_ctx=False,
-        )
-
-    return source
-
-
 def load_caller_agent_prompt(
     *, caller_phone: str | None = None, call_context: dict[str, Any] | None = None
 ) -> str:
@@ -221,7 +141,14 @@ def load_caller_agent_prompt(
         "caller_phone": runtime_caller_phone,
         "role": "unknown",
     }
+    now = datetime.now(ZoneInfo(AGENT_TIMEZONE)).strftime("%A, %d %B %Y, %H:%M %Z")
     return f"""{prompt}
+
+## Current Date And Time
+
+The current date and time is {now}. Use this as the reference for any dates the
+caller mentions (for example "next Friday" or "the 22nd"). Resolve every date to
+a concrete date in the correct current year, and never book a date in the past.
 
 ## Runtime Demo Call Context
 
@@ -430,13 +357,7 @@ class Assistant(Agent):
         await context.update(
             "Ich prüfe kurz, welche Reinigungskraft zu dieser Anfrage passt."
         )
-        async with context.with_filler(
-            keyboard_filler_source(context),
-            delay=KEYBOARD_FILLER_DELAY_SECONDS,
-            interval=KEYBOARD_FILLER_INTERVAL_SECONDS,
-            max_steps=KEYBOARD_FILLER_MAX_STEPS,
-        ):
-            return await PocketBaseClient().suggest_cleaner(booking_request)
+        return await PocketBaseClient().suggest_cleaner(booking_request)
 
     @function_tool(
         raw_schema={
@@ -472,13 +393,7 @@ class Assistant(Agent):
         if not isinstance(payload, dict):
             raise ToolError("create_booking requires a payload object.")
         await context.update("Ich speichere die Anfrage kurz für die Reinigungskraft.")
-        async with context.with_filler(
-            keyboard_filler_source(context),
-            delay=KEYBOARD_FILLER_DELAY_SECONDS,
-            interval=KEYBOARD_FILLER_INTERVAL_SECONDS,
-            max_steps=KEYBOARD_FILLER_MAX_STEPS,
-        ):
-            return await PocketBaseClient().create_booking(payload)
+        return await PocketBaseClient().create_booking(payload)
 
 
 server = AgentServer()
@@ -528,6 +443,17 @@ async def my_agent(ctx: JobContext):
             ),
         ),
     )
+
+    # Play LiveKit's built-in keyboard typing as a thinking sound for the full
+    # duration of any tool call (suggest_cleaner / create_booking), so the caller
+    # never hears dead air while PocketBase is queried.
+    background_audio = BackgroundAudioPlayer(
+        thinking_sound=[
+            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING, volume=0.8),
+            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING2, volume=0.7),
+        ],
+    )
+    await background_audio.start(room=ctx.room, agent_session=session)
 
     # Greet the caller in German immediately, without waiting on PocketBase.
     await session.generate_reply(
