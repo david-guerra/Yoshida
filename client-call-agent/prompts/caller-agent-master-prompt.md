@@ -342,6 +342,22 @@ Build the payload from caller statements and PocketBase context only:
 }
 ```
 
+Use canonical values for the structured fields — never the caller's wording or
+language:
+
+- `booking.service_type` (and the `service_type` in `suggest_cleaner`) must be
+  exactly one of: `regular_cleaning`, `deep_cleaning`, `move_out`, `office`,
+  `other`. Map the caller's request to the closest option (for example
+  "Umzug"/"mudanza"/"move-out cleaning" → `move_out`).
+- Each `type` in `booking_notes` and `client_preferences` must be exactly one of:
+  `access`, `pets`, `parking`, `property`, `products`, `allergies`, `schedule`,
+  `other`. Use `other` when nothing fits.
+
+These keys are language-independent identifiers; the cleaner-facing card renders
+them in the cleaner's language. Do not put free text or the caller's language in
+`service_type` or `type`. The caller's actual words still go verbatim in `note`,
+with the cleaner-language translation in `note_translated`.
+
 Only include `cleaner_phone` when `suggest_cleaner` returns an available
 cleaner with a phone number. If no cleaner is available, leave `cleaner_phone`
 out completely so PocketBase can store the booking as requested.

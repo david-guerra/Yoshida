@@ -19,10 +19,11 @@ test("buildBookingBriefing localizes labels for the cleaner language", () => {
     start: "2026-06-30 10:00",
     notes: [],
   });
-  assert.match(out, /Hizmet: deep_cleaning/);
+  assert.match(out, /Hizmet: Derin temizlik/);
   assert.match(out, /Konum: Berlin/);
   assert.doesNotMatch(out, /Service:/);
   assert.doesNotMatch(out, /Location:/);
+  assert.doesNotMatch(out, /deep_cleaning/);
 });
 
 test("buildBookingBriefing prefers note_translated and omits the raw note", () => {
@@ -53,7 +54,7 @@ test("buildCustomerSummary localizes the lead and uses translated notes", () => 
     serviceType: "regular_cleaning",
     notes: [{ note: "ring", note_translated: "bitte klingeln" }],
   });
-  assert.match(out, /Anna hat regular_cleaning angefragt\./);
+  assert.match(out, /Anna hat Unterhaltsreinigung angefragt\./);
   assert.match(out, /bitte klingeln/);
 });
 
@@ -70,18 +71,33 @@ test("buildCallInBriefing uses the cleaner-language template", () => {
   assert.doesNotMatch(out, /upcoming booking/);
 });
 
-test("buildBookingBriefing falls back to English labels for non-en/de/tr languages", () => {
+test("buildBookingBriefing fully localizes for ru (labels, service, note type)", () => {
   const out = briefing.buildBookingBriefing({
     lang: "ru",
     serviceType: "deep_cleaning",
     city: "Berlin",
-    notes: [{ note: "x", note_translated: "переведено" }],
+    notes: [
+      { type: "pets", note: "Tiene un gato", note_translated: "В квартире есть кот." },
+    ],
   });
-  // ru has no localized label set -> English labels, but the agent-translated
-  // note content still appears in the cleaner's language.
-  assert.match(out, /Service: deep_cleaning/);
-  assert.match(out, /Location: Berlin/);
-  assert.match(out, /переведено/);
+  assert.match(out, /Услуга: Генеральная уборка/);
+  assert.match(out, /Адрес: Berlin/);
+  assert.match(out, /питомцы: В квартире есть кот\./);
+  assert.doesNotMatch(out, /Service:/);
+  assert.doesNotMatch(out, /Location:/);
+  assert.doesNotMatch(out, /deep_cleaning/);
+});
+
+test("service/type fall back to the raw value when not a known enum/type", () => {
+  const out = briefing.buildBookingBriefing({
+    lang: "en",
+    serviceType: "limpieza sencilla",
+    notes: [{ type: "mascotas", note: "x", note_translated: "Dog" }],
+  });
+  // Un-normalized free text is shown verbatim (no crash, no drop) — but the
+  // prompt instructs the agent to send canonical enum/type values instead.
+  assert.match(out, /Service: limpieza sencilla/);
+  assert.match(out, /mascotas: Dog/);
 });
 
 test("buildCallInBriefing falls back to en for unsupported language", () => {

@@ -189,6 +189,24 @@ def test_prompt_requires_translated_notes_for_cleaner_card() -> None:
     assert instructions.count('"note_translated"') >= 2
 
 
+def test_prompt_pins_canonical_service_and_note_types() -> None:
+    instructions = Assistant().instructions
+
+    assert "canonical values" in instructions.lower()
+    for token in ("regular_cleaning", "deep_cleaning", "move_out", "office"):
+        assert token in instructions
+    for token in (
+        "access",
+        "pets",
+        "parking",
+        "property",
+        "products",
+        "allergies",
+        "schedule",
+    ):
+        assert token in instructions
+
+
 def test_agent_plays_builtin_keyboard_thinking_sound() -> None:
     session_source = inspect.getsource(agent_module.my_agent)
 
