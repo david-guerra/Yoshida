@@ -2,7 +2,7 @@
 
 A hackathon voice AI prototype for independent cleaners facing a language barrier with German-speaking clients. A browser caller speaks German with an agent; the intended outcome is a tentative cleaning request that a cleaner can review in their own language.
 
-**Status: hackathon prototype for supervised local demos.** This repository includes the caller, agent, dashboard, and PocketBase hooks/schema setup. A fresh synthetic database, booking creation, cleaner login, and component tests have been verified. Live voice calls still require your own provider account; live model evaluations are opt-in.
+**Status: hackathon prototype for supervised local demos.** This repository includes the caller, agent, dashboard, and PocketBase hooks/schema setup. A fresh synthetic database, booking creation, cleaner login, and component tests have been verified. Live voice calls were not revalidated: they require your own provider account and a supported TTS route. See the [current gateway limitation](docs/setup.md#optional-live-voice-demo); live model evaluations are opt-in.
 
 ## Demo flow
 

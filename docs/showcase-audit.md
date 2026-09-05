@@ -30,13 +30,13 @@ If a new finding requires rewriting history: first revoke/rotate affected creden
 
 ## Verification
 
-- Clean npm installs for both frontends. Caller lockfile repaired for missing transitive entries without upgrading direct dependencies.
+- Clean npm installs for both frontends. Caller lockfile repaired for missing transitive entries. Both frontends now use Next.js / eslint-config-next 16.3.4, with compatible transitive security updates; npm audit reports zero known vulnerabilities in each lockfile.
 - Dashboard: 14 tests, ESLint, TypeScript and production build pass. The realtime regression tests use named PocketBase events and reject failed subscriptions.
 - Caller: 13 tests, ESLint, TypeScript and production build pass.
-- Agent: 36 offline tests pass, three live model evaluations are skipped; Ruff passes. Offline tests use synthetic credentials and make no provider calls.
+- Agent: 36 offline tests pass, three live model evaluations are skipped; Ruff passes. Offline tests use synthetic credentials and make no provider calls. The lockfile now uses LiveKit Agents 1.7.0 (which pins patched json-repair 0.60.1) and aiohttp 3.14.3; pip-audit reports no known vulnerabilities in the exported runtime requirements.
 - PocketBase: 13 helper/source tests pass; fresh 0.39.4 schema setup and synthetic seed succeed.
 - Local HTTP integration: user login, caller identification, preferences, matching stub, tentative booking creation, expanded authenticated reads, translated notes, and cleaner briefing pass.
-- Browser: synthetic cleaner login and booking display work; after the realtime fix, a new request appears without reloading. The previous ordinary-message subscription remained stuck on Connecting.
+- Browser: synthetic cleaner login and booking display work; after the realtime fix, a new request appears without reloading. The previous ordinary-message subscription remained stuck on Connecting. The upgraded Next.js 16.3.4 production server also renders the synthetic bookings and reaches Live.
 
 A new paid live voice call and Docker deployment were not exercised. The README describes the voice stack and demo flow without claiming those were revalidated by this cleanup. Matching, multilingual quality, and access isolation remain explicitly limited as described in the README.
 

@@ -72,6 +72,8 @@ The custom routes are unauthenticated and every authenticated user can access al
 
 Configure your own LiveKit project and check availability/access for the pinned voice stack. The checked-in worker uses LiveKit Inference with Deepgram Nova-3 STT, the configured LLM, ElevenLabs Flash v2.5 TTS, turn detection, and the ai-coustics plugin. Provider/model availability and account terms are separate from installing the Python SDK.
 
+As of the cleanup, [LiveKit Agents 1.8.0 release notes](https://github.com/livekit/agents/releases/tag/livekit-agents%401.8.0) report removal of ElevenLabs models from the inference gateway. This project locks Agents 1.7.0 for the dependency security fixes, but an older SDK cannot preserve a retired remote service. Verify the configured TTS route before attempting the voice demo; switching to a supported provider route may be necessary and was not exercised here.
+
 With the synthetic test backend running on loopback and both frontends started:
 
 ```sh
