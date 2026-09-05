@@ -2,17 +2,17 @@
 
 A hackathon voice AI prototype for independent cleaners facing a language barrier with German-speaking clients. A browser caller speaks German with an agent; the intended outcome is a tentative cleaning request that a cleaner can review in their own language.
 
-**Status: prototype; showcase preparation is still open.** This repository contains the caller, agent, and dashboard. The custom PocketBase backend used by the demo is missing, so a fresh clone cannot reproduce the complete call-to-booking flow yet. Offline checks and frontend builds can run independently.
+**Status: hackathon prototype for supervised local demos.** This repository includes the caller, agent, dashboard, and PocketBase hooks/schema setup. A fresh synthetic database, booking creation, cleaner login, and component tests have been verified. Live voice calls still require your own provider account; live model evaluations are opt-in.
 
 ## Demo flow
 
 1. The caller app requests microphone access and a server-minted LiveKit token for `demo-call`.
 2. The server dispatches the `client-call-agent` worker with a synthetic caller identity.
-3. The agent preloads caller context from PocketBase, opens in German, and collects a cleaning request.
+3. The agent opens in German while loading caller context from PocketBase, then collects a cleaning request.
 4. Its tools request cleaner preferences, suggest a match, and submit a tentative booking.
-5. The authenticated dashboard reads bookings and attempts realtime refreshes from PocketBase; the cleaner reviews the result.
+5. The authenticated dashboard reads bookings and receives realtime refreshes from PocketBase; the cleaner reviews the result.
 
-This describes the implemented integration and intended demo. A successful build is not proof of a working backend, realtime subscription, translation, or live voice call. The agent prompt requires human confirmation; that is a conversational constraint, not a verified enforcement mechanism in the missing backend.
+The backend creates requests with `requested` status regardless of a caller-supplied status. Human confirmation is required outside this prototype; a confirmation action is not implemented in the dashboard. The local setup checks exercise booking tools and dashboard reads; they do not establish live speech quality, translation accuracy, or suitability for real customer data.
 
 ## Architecture
 
@@ -23,7 +23,7 @@ flowchart LR
     Token --> Room
     Room <--> Agent[client-call-agent: Python]
     Agent --> Inference[LiveKit Inference: STT / LLM / TTS]
-    Agent --> PB[Custom PocketBase backend: not included]
+    Agent --> PB[PocketBase hooks + SQLite]
     Dashboard[dashboard: Next.js + browser realtime] <--> PB
 ```
 
@@ -32,10 +32,11 @@ flowchart LR
 | `web-caller/` | Next.js caller UI, microphone access, LiveKit token signing and dispatch |
 | `client-call-agent/` | Python LiveKit worker, German conversation prompt, PocketBase HTTP tools |
 | `dashboard/` | Next.js cleaner login, bookings, calendar, preferences, and realtime client |
+| `pocketbase/` | Schema setup, synthetic cleaner seed, HTTP hooks, and localization helpers |
 | `docs/` | Setup, backend contract, privacy review, and publication gates |
-| `design/` | Historical design references; provenance and display rights await confirmation |
+| `design/` | Team-approved fictional design references |
 
-The dashboard does not join the LiveKit room. There is no checked-in `agent/`, `web-cleaner/`, or PocketBase implementation. Earlier planning documents describe the hackathon's evolving design; this README describes the checked-in layout.
+The dashboard does not join the LiveKit room. The historical `agent/` and `web-cleaner/` names correspond to `client-call-agent/` and `dashboard/`. PocketBase binaries and runtime data are excluded. Earlier planning documents describe the hackathon's evolving design; this README describes the checked-in layout.
 
 ## Team and contribution
 
@@ -72,27 +73,33 @@ cd client-call-agent
 uv run --frozen pytest -q
 uv run --frozen ruff check .
 uv run --frozen ruff format --check .
+cd ..
+node --test pocketbase/tests/*.test.mjs
 ```
 
-The frontend tests mostly inspect source contracts. Agent tests cover prompt construction and HTTP tool boundaries with test doubles; three live model evaluations are opt-in. They do not establish end-to-end or production readiness. Dependency installation and the dashboard's Google font build need network access.
+The frontend tests mostly inspect source contracts. Agent tests cover prompt construction and HTTP tool boundaries with test doubles; three live model evaluations are opt-in. They do not establish end-to-end or production readiness. Dependency installation needs network access; frontend builds do not require provider credentials.
 
-For local UI startup, environment configuration, and the conditional live demo, follow [setup](docs/setup.md). The caller UI can render without credentials; placing a call requires a configured LiveKit project. The dashboard login renders without PocketBase; signing in and reading bookings require the missing backend and an authorized test account.
+For local UI startup, environment configuration, and the conditional live demo, follow [setup](docs/setup.md). The caller UI can render without credentials; placing a call requires a configured LiveKit project. The dashboard login renders without PocketBase; signing in and reading bookings require the local backend and synthetic account described in the setup guide.
 
 ## Media
 
-No verified call recording or end-to-end demo screenshot is published here. The files in `design/` are **design mockups**, not proof of working features; see the [media inventory](design/README.md). Replace these with permission-cleared captures using synthetic records after the backend is restored.
+Actual dashboard capture from a disposable synthetic PocketBase database. The third booking appeared through realtime without a reload; this is not a recording of a live voice call.
+
+![CleanVoice dashboard with three fictional booking requests and a live connection](docs/media/dashboard-synthetic.jpg)
+
+The [media inventory](design/README.md) also records the team-approved historical design concept.
 
 ## Limitations and boundaries
 
 - Browser audio simulates a call; no checked-in SIP/PSTN telephone integration exists.
 - The caller uses a fixed room and participant identity. Its token and dispatch routes have no authentication or rate limiting. Run them on loopback for supervised demos; do not expose a credentialed caller publicly.
-- The agent's custom PocketBase requests have no service authentication. Backend access rules, tenant isolation, input validation, and booking confirmation enforcement cannot be assessed without that code.
-- Dashboard auth depends on PocketBase rules; optional superuser configuration is not a substitute for least-privilege user authorization.
+- The custom PocketBase routes have no authentication or rate limits. The setup grants every authenticated user access to all base collections; tenant isolation is absent. Keep the backend on loopback with disposable synthetic data.
+- Cleaner matching is a demo stub that selects the first available record and only warns about a low budget; it does not implement full availability, location, or service matching. Booking writes are nontransactional and retries may duplicate records.
 - Audio, text, and tool context can reach configured inference providers. Retention, recording consent, deletion, and approved voice use have not been established for real callers.
-- Translation quality, matching accuracy, availability checks, and realtime behavior require a new integration test. The prototype has no production reliability or security assurance.
+- Translations need native-speaker review, especially Polish, Ukrainian, and Arabic. There is no production matching or availability guarantee. The prototype has no production reliability or security assurance.
 
 ## Publication and license
 
-There is no project-wide license grant yet. MIT is proposed for the team to adopt; the final license choice remains open; the upstream starter notice applies only to its covered code. Do not infer rights to team assets, provider voices, or models from the repository being public.
+MIT, with shared credit to David Guerra, lishiiChan, younaorg, and CleanVoice contributors. See [LICENSE](LICENSE). Upstream source notices, provider terms, and voice/model rights are separately documented in [third-party notices](THIRD_PARTY_NOTICES.md).
 
 [Showcase audit and remaining gates](docs/showcase-audit.md) · [Security guidance](SECURITY.md) · [Active cleanup issue](https://github.com/david-guerra/CleanVoice/issues/2)

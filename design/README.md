@@ -1,8 +1,7 @@
-# Historical design references
+# Showcase media
 
-| File | What it is | Publication status |
-| --- | --- | --- |
-| `cleaner-dashboard-ui-mockup.png` | Desktop dashboard concept with translated requests and approval controls | Creator, source tool, team rights, and fictional-data provenance require confirmation |
-| `cleaner-dashboard-mobile-simple-mockup.png` | Mobile/tablet dashboard concept | Same pending confirmation |
+`cleaner-dashboard-mobile-simple-mockup.png` is a historical mobile/tablet **design mockup**, not a screenshot of the application. David confirmed on 2026-09-05 that its names, requests, locations, and property-access notes are fictional and that team publication permission covers it. The earlier desktop mockup was removed in the local project history.
 
-These are mockups, not screenshots of the checked-in application. They include customer-like names, locations, request text, and property-access notes. They are omitted from the showcase README until provenance is confirmed. Do not treat their depicted features as implemented. No new audio, recording, transcript, or customer data should be added to demonstrate the app.
+Only synthetic data may appear in new screenshots. Do not publish actual caller recordings, transcripts, access codes, or database exports.
+
+`../docs/media/dashboard-synthetic.jpg` is an actual local dashboard capture from 2026-09-05 with three synthetic requests. It verifies the displayed UI, not a live voice call.

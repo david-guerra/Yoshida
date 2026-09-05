@@ -22,4 +22,4 @@ uv run --frozen src/agent.py download-files
 uv run --frozen src/agent.py dev
 ```
 
-Run from this directory so `.env.local` is loaded. The worker registers as `client-call-agent` and is dispatched by `web-caller`. Backend access defaults to loopback; the required custom PocketBase routes are not included. Read [setup](../docs/setup.md) and [backend contract](../docs/backend-contract.md) first. The Dockerfile is inherited deployment scaffolding and is not covered by local demo verification.
+Run from this directory so `.env.local` is loaded. The worker registers as `client-call-agent` and is dispatched by `web-caller`. Backend access defaults to loopback; the required custom PocketBase routes and schema setup are in `../pocketbase/`. Read [setup](../docs/setup.md) and [backend contract](../docs/backend-contract.md) first. The Dockerfile is inherited deployment scaffolding and is not covered by local demo verification.

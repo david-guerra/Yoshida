@@ -111,12 +111,8 @@ async def enrich_booking_payload_with_cleaner_language(
     if language is None and isinstance(cleaner_phone, str) and cleaner_phone.strip():
         try:
             preferences = await pocketbase.get_cleaner_preferences(cleaner_phone)
-        except Exception as exc:
-            logger.warning(
-                "Cleaner language lookup failed for cleaner %s: %s",
-                cleaner_phone,
-                exc,
-            )
+        except Exception:
+            logger.warning("Cleaner language lookup failed; using default language")
             preferences = {}
         language = _language_from_mapping(preferences)
 
@@ -198,8 +194,7 @@ class PocketBaseClient:
 
     async def _json_or_tool_error(self, response: Any, action: str) -> dict[str, Any]:
         if not 200 <= response.status < 300:
-            body = await response.text()
-            raise ToolError(f"{action} failed with status {response.status}: {body}")
+            raise ToolError(f"{action} failed with status {response.status}")
         data = await response.json()
         if not isinstance(data, dict):
             raise ToolError(f"{action} returned an unexpected response.")

@@ -24,7 +24,7 @@ export default async function NewOrderPage({ searchParams }: NewOrderPageProps) 
       active="orders"
       title="New order"
       backHref="/orders"
-      subtitle="Add a tentative booking to PocketBase. Nothing is binding until you approve it."
+      subtitle="Add a tentative booking to PocketBase. Nothing is binding until confirmed outside this prototype."
     >
       {error ? (
         <div className="mb-6 flex items-center gap-2.5 rounded-group bg-red-soft px-4 py-3 text-[14px] font-medium text-red-ink">

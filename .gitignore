@@ -35,3 +35,7 @@ transcripts/
 *.bundle
 *.pem
 *.key
+
+# Python runtime output across components
+__pycache__/
+*.py[cod]

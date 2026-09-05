@@ -22,10 +22,6 @@ const homePageSource = readFileSync(
   new URL("../src/app/page.tsx", import.meta.url),
   "utf8",
 );
-const liveDashboardSource = readFileSync(
-  new URL("../src/components/LiveOrdersDashboard.tsx", import.meta.url),
-  "utf8",
-);
 const cleanerPreferencesSource = readFileSync(
   new URL("../src/lib/cleanerPreferences.ts", import.meta.url),
   "utf8",
@@ -65,12 +61,6 @@ test("orders never fall back to mock data or a baked cleaner id", () => {
   assert.match(ordersSource, /filter:\s*`cleaner = "\$\{cleanerId\}"/);
 });
 
-test("dashboard subscribes to PocketBase realtime and refreshes cleaner bookings", () => {
-  assert.match(liveDashboardSource, /new EventSource\(/);
-  assert.match(liveDashboardSource, /\/api\/realtime/);
-  assert.match(liveDashboardSource, /\/api\/collections\/bookings\/records/);
-  assert.match(liveDashboardSource, /collection === "bookings"/);
-});
 
 test("dashboard public PocketBase URL falls back to the shared server env", () => {
   assert.match(

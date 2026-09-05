@@ -1,5 +1,7 @@
 "use client";
 
+import { connectBookingRealtime } from "@/src/lib/bookingRealtime";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Badge, { statusTone } from "@/src/components/ui/Badge";
 import { InsetGroup, ListRow } from "@/src/components/ui/Card";
@@ -14,15 +16,6 @@ import {
 
 type PocketBaseList<T> = {
   items?: T[];
-};
-
-type PocketBaseRealtimeEvent = {
-  action?: string;
-  clientId?: string;
-  record?: {
-    collection?: string;
-    collectionName?: string;
-  };
 };
 
 type LiveOrdersDashboardProps = {
@@ -129,46 +122,10 @@ export default function LiveOrdersDashboard({
     setOrders((data.items ?? []).map(mapBooking));
   }, [cleanerId, pocketBaseUrl, token]);
 
-  useEffect(() => {
-    const realtimeUrl = buildPocketBaseUrl("/api/realtime", pocketBaseUrl);
-    const source = new EventSource(realtimeUrl);
-
-    source.onmessage = async (message) => {
-      const eventData = JSON.parse(message.data) as PocketBaseRealtimeEvent;
-
-      if (eventData.clientId) {
-        await fetch(realtimeUrl, {
-          body: JSON.stringify({
-            clientId: eventData.clientId,
-            subscriptions: ["bookings"],
-          }),
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            "ngrok-skip-browser-warning": "true",
-          },
-          method: "POST",
-        });
-        setSyncState("live");
-        return;
-      }
-
-      const collection =
-        eventData.record?.collectionName ?? eventData.record?.collection;
-
-      if (collection === "bookings") {
-        await refreshOrders();
-      }
-    };
-
-    source.onerror = () => {
-      setSyncState("offline");
-    };
-
-    return () => {
-      source.close();
-    };
-  }, [pocketBaseUrl, refreshOrders, token]);
+  useEffect(
+    () => connectBookingRealtime(pocketBaseUrl, token, refreshOrders, setSyncState),
+    [pocketBaseUrl, refreshOrders, token],
+  );
 
   const upcomingOrders = useMemo(
     () => orders.filter((order) => order.category === "upcoming"),

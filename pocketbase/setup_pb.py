@@ -11,13 +11,13 @@ import sys
 import urllib.error
 import urllib.request
 
-BASE = "http://127.0.0.1:8090"
+BASE = os.environ.get("POCKETBASE_URL", "http://127.0.0.1:8090").rstrip("/")
 ADMIN_EMAIL = os.environ["PB_ADMIN_EMAIL"]
 ADMIN_PASSWORD = os.environ["PB_ADMIN_PASSWORD"]
 
-DEMO_EMAIL = "cleaner@cleanvoice.local"
-DEMO_PASSWORD = os.environ.get("PB_DEMO_PASSWORD", "cleanvoice123")
-DEMO_NAME = "Maria Kowalski"
+DEMO_EMAIL = "cleaner@example.test"
+DEMO_PASSWORD = os.environ["CLEANVOICE_DEMO_PASSWORD"]
+DEMO_NAME = "Example Cleaner"
 
 AUTHED = '@request.auth.id != ""'
 
@@ -84,7 +84,7 @@ def main():
     status, data = req("POST", "/api/collections/_superusers/auth-with-password",
                        body={"identity": ADMIN_EMAIL, "password": ADMIN_PASSWORD})
     if status != 200:
-        print("superuser auth failed:", status, data)
+        print("superuser auth failed:", status)
         sys.exit(1)
     token = data["token"]
     print("authenticated as superuser")
@@ -170,7 +170,7 @@ def main():
     else:
         status, data = req("POST", "/api/collections/cleaners/records", token, {
             "user": user_id, "name": DEMO_NAME, "email": DEMO_EMAIL,
-            "phone": "+49 170 0000000", "preferred_language": "en",
+            "phone": "+12025550101", "preferred_language": "en",
             "service_areas": ["Berlin"], "skills": [], "active": True,
         })
         if status not in (200, 201):
@@ -178,7 +178,7 @@ def main():
             sys.exit(1)
         print(f"  + demo cleaner ({data['id']})")
 
-    print("\nDONE. Login:", DEMO_EMAIL, "/", DEMO_PASSWORD)
+    print("\nDONE. Synthetic login:", DEMO_EMAIL, "(password supplied via environment)")
 
 
 if __name__ == "__main__":
