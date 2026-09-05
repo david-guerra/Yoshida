@@ -143,21 +143,21 @@ def test_prompt_requires_cleaner_language_for_summaries() -> None:
 
 def test_prompt_uses_preloaded_context_without_startup_lookup_tool() -> None:
     instructions = Assistant(
-        caller_phone="+491700000002",
+        caller_phone="+12025550102",
         call_context={
             "lookup_status": "available",
-            "caller_phone": "+491700000002",
+            "caller_phone": "+12025550102",
             "role": "existing_client",
             "identify_caller": {
                 "role": "existing_client",
-                "client": {"name": "Anna Weber", "preferred_language": "de"},
+                "client": {"name": "Example Client", "preferred_language": "de"},
             },
         },
     ).instructions
 
-    assert "`caller_phone`: `+491700000002`" in instructions
+    assert "`caller_phone`: `+12025550102`" in instructions
     assert '"role": "existing_client"' in instructions
-    assert "Anna Weber" in instructions
+    assert "Example Client" in instructions
     assert "Do not ask the caller to provide their phone number" in instructions
     assert (
         "Call `identify_caller(caller_phone)` before choosing the call path."
@@ -260,7 +260,7 @@ async def test_preload_call_context_identifies_caller() -> None:
             calls.append(("identify_caller", caller_phone))
             return {
                 "role": "existing_client",
-                "client": {"name": "Anna Weber", "preferred_language": "de"},
+                "client": {"name": "Example Client", "preferred_language": "de"},
             }
 
         async def get_cleaner_briefing(self, caller_phone: str):
@@ -268,19 +268,19 @@ async def test_preload_call_context_identifies_caller() -> None:
             return {"briefing": "Should not be called."}
 
     result = await agent_module.preload_call_context(
-        "+491700000002", client=FakePocketBaseClient()
+        "+12025550102", client=FakePocketBaseClient()
     )
 
     assert result == {
         "lookup_status": "available",
-        "caller_phone": "+491700000002",
+        "caller_phone": "+12025550102",
         "role": "existing_client",
         "identify_caller": {
             "role": "existing_client",
-            "client": {"name": "Anna Weber", "preferred_language": "de"},
+            "client": {"name": "Example Client", "preferred_language": "de"},
         },
     }
-    assert calls == [("identify_caller", "+491700000002")]
+    assert calls == [("identify_caller", "+12025550102")]
 
 
 @pytest.mark.asyncio
@@ -290,13 +290,13 @@ async def test_preload_call_context_fetches_cleaner_briefing() -> None:
     class FakePocketBaseClient:
         async def identify_caller(self, caller_phone: str):
             calls.append(("identify_caller", caller_phone))
-            return {"role": "cleaner", "cleaner": {"name": "Maria"}}
+            return {"role": "cleaner", "cleaner": {"name": "Example Cleaner"}}
 
         async def get_cleaner_briefing(self, caller_phone: str):
             calls.append(("get_cleaner_briefing", caller_phone))
             return {
                 "role": "cleaner",
-                "briefing": "Hi Maria. You have one tentative job.",
+                "briefing": "Hi Example Cleaner. You have one tentative job.",
             }
 
         async def get_cleaner_preferences(self, caller_phone: str):
@@ -314,17 +314,17 @@ async def test_preload_call_context_fetches_cleaner_briefing() -> None:
             }
 
     result = await agent_module.preload_call_context(
-        "+491700000001", client=FakePocketBaseClient()
+        "+12025550101", client=FakePocketBaseClient()
     )
 
     assert result == {
         "lookup_status": "available",
-        "caller_phone": "+491700000001",
+        "caller_phone": "+12025550101",
         "role": "cleaner",
-        "identify_caller": {"role": "cleaner", "cleaner": {"name": "Maria"}},
+        "identify_caller": {"role": "cleaner", "cleaner": {"name": "Example Cleaner"}},
         "cleaner_briefing": {
             "role": "cleaner",
-            "briefing": "Hi Maria. You have one tentative job.",
+            "briefing": "Hi Example Cleaner. You have one tentative job.",
         },
         "cleaner_preferences": {
             "ok": True,
@@ -338,10 +338,10 @@ async def test_preload_call_context_fetches_cleaner_briefing() -> None:
             },
         },
     }
-    assert calls[0] == ("identify_caller", "+491700000001")
+    assert calls[0] == ("identify_caller", "+12025550101")
     assert set(calls[1:]) == {
-        ("get_cleaner_briefing", "+491700000001"),
-        ("get_cleaner_preferences", "+491700000001"),
+        ("get_cleaner_briefing", "+12025550101"),
+        ("get_cleaner_preferences", "+12025550101"),
     }
 
 
@@ -356,9 +356,9 @@ def test_cleaner_summary_language_defaults_to_english() -> None:
 async def test_booking_payload_gets_cleaner_language_from_pocketbase() -> None:
     calls = []
     payload = {
-        "caller_phone": "+491700000002",
-        "cleaner_phone": "+491700000001",
-        "client": {"name": "Anna Weber", "preferred_language": "de"},
+        "caller_phone": "+12025550102",
+        "cleaner_phone": "+12025550101",
+        "client": {"name": "Example Client", "preferred_language": "de"},
         "booking": {"service_type": "regular_cleaning"},
     }
 
@@ -379,7 +379,7 @@ async def test_booking_payload_gets_cleaner_language_from_pocketbase() -> None:
     assert enriched["cleaner_language"] == "tr"
     assert enriched["cleaner"]["preferred_language"] == "tr"
     assert payload.get("cleaner_language") is None
-    assert calls == [("get_cleaner_preferences", "+491700000001")]
+    assert calls == [("get_cleaner_preferences", "+12025550101")]
 
 
 @pytest.mark.asyncio
@@ -392,7 +392,7 @@ async def test_booking_payload_defaults_cleaner_language_to_english() -> None:
             }
 
     enriched = await agent_module.enrich_booking_payload_with_cleaner_language(
-        {"caller_phone": "+491700000002", "cleaner_phone": "+491700000001"},
+        {"caller_phone": "+12025550102", "cleaner_phone": "+12025550101"},
         FakePocketBaseClient(),
     )
 
@@ -407,12 +407,12 @@ async def test_preload_call_context_falls_back_when_pocketbase_fails() -> None:
             raise RuntimeError("PocketBase is unavailable")
 
     result = await agent_module.preload_call_context(
-        "+491700000003", client=FakePocketBaseClient()
+        "+12025550103", client=FakePocketBaseClient()
     )
 
     assert result == {
         "lookup_status": "unavailable",
-        "caller_phone": "+491700000003",
+        "caller_phone": "+12025550103",
         "role": "unknown",
         "error": "PocketBase is unavailable",
     }
@@ -444,7 +444,7 @@ async def test_pocketbase_identify_caller_posts_with_ngrok_header() -> None:
 
     client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
 
-    result = await client.identify_caller("+491700000001")
+    result = await client.identify_caller("+12025550101")
 
     assert result == {"role": "new_client"}
     assert calls == [
@@ -455,7 +455,7 @@ async def test_pocketbase_identify_caller_posts_with_ngrok_header() -> None:
                 "ngrok-skip-browser-warning": "true",
                 "Content-Type": "application/json",
             },
-            {"caller_phone": "+491700000001"},
+            {"caller_phone": "+12025550101"},
         )
     ]
 
@@ -474,7 +474,7 @@ async def test_pocketbase_cleaner_briefing_encodes_plus_phone() -> None:
             return None
 
         async def json(self):
-            return {"role": "cleaner", "briefing": "Hi Maria."}
+            return {"role": "cleaner", "briefing": "Hi Example Cleaner."}
 
         async def text(self):
             return ""
@@ -486,13 +486,13 @@ async def test_pocketbase_cleaner_briefing_encodes_plus_phone() -> None:
 
     client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
 
-    result = await client.get_cleaner_briefing("+491700000001")
+    result = await client.get_cleaner_briefing("+12025550101")
 
-    assert result == {"role": "cleaner", "briefing": "Hi Maria."}
+    assert result == {"role": "cleaner", "briefing": "Hi Example Cleaner."}
     assert calls == [
         (
             "GET",
-            "https://example.test/api/cleanvoice/cleaner-briefing?phone=%2B491700000001",
+            "https://example.test/api/cleanvoice/cleaner-briefing?phone=%2B12025550101",
             {"ngrok-skip-browser-warning": "true"},
         )
     ]
@@ -527,7 +527,7 @@ async def test_pocketbase_cleaner_preferences_encodes_plus_phone() -> None:
 
     client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
 
-    result = await client.get_cleaner_preferences("+491700000001")
+    result = await client.get_cleaner_preferences("+12025550101")
 
     assert result == {
         "ok": True,
@@ -536,7 +536,7 @@ async def test_pocketbase_cleaner_preferences_encodes_plus_phone() -> None:
     assert calls == [
         (
             "GET",
-            "https://example.test/api/cleanvoice/cleaner-preferences?phone=%2B491700000001",
+            "https://example.test/api/cleanvoice/cleaner-preferences?phone=%2B12025550101",
             {"ngrok-skip-browser-warning": "true"},
         )
     ]
@@ -566,7 +566,7 @@ async def test_pocketbase_suggest_cleaner_posts_booking_request() -> None:
             return {
                 "ok": True,
                 "available": True,
-                "cleaner": {"phone": "+491700000001"},
+                "cleaner": {"phone": "+12025550101"},
                 "warnings": [],
             }
 
@@ -585,7 +585,7 @@ async def test_pocketbase_suggest_cleaner_posts_booking_request() -> None:
     assert result == {
         "ok": True,
         "available": True,
-        "cleaner": {"phone": "+491700000001"},
+        "cleaner": {"phone": "+12025550101"},
         "warnings": [],
     }
     assert calls == [
@@ -605,8 +605,8 @@ async def test_pocketbase_suggest_cleaner_posts_booking_request() -> None:
 async def test_pocketbase_create_booking_posts_payload_with_json_headers() -> None:
     calls = []
     payload = {
-        "caller_phone": "+491700000002",
-        "client": {"name": "Anna Weber", "preferred_language": "de"},
+        "caller_phone": "+12025550102",
+        "client": {"name": "Example Client", "preferred_language": "de"},
         "address": {"city": "Berlin"},
         "booking": {"service_type": "regular_cleaning"},
     }
@@ -621,7 +621,7 @@ async def test_pocketbase_create_booking_posts_payload_with_json_headers() -> No
             return None
 
         async def json(self):
-            return {"ok": True, "cleaner_briefing": "Hi Maria."}
+            return {"ok": True, "cleaner_briefing": "Hi Example Cleaner."}
 
         async def text(self):
             return ""
@@ -635,7 +635,7 @@ async def test_pocketbase_create_booking_posts_payload_with_json_headers() -> No
 
     result = await client.create_booking(payload)
 
-    assert result == {"ok": True, "cleaner_briefing": "Hi Maria."}
+    assert result == {"ok": True, "cleaner_briefing": "Hi Example Cleaner."}
     assert calls == [
         (
             "POST",
@@ -676,7 +676,7 @@ async def test_pocketbase_create_booking_accepts_created_status() -> None:
 
     client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
 
-    assert await client.create_booking({"caller_phone": "+491700000002"}) == {
+    assert await client.create_booking({"caller_phone": "+12025550102"}) == {
         "ok": True,
         "booking": {"id": "booking_123"},
     }

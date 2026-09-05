@@ -113,14 +113,14 @@ create_booking(payload)
   booking, booking_notes, and client_preferences. This is a write action.
 ```
 
-Current PocketBase API base URL:
+Default local PocketBase API base URL:
 
 ```text
-https://snowiness-difficult-finer.ngrok-free.dev
+http://127.0.0.1:8090
 ```
 
-The base URL can change when ngrok restarts. The runtime value comes from
-`CLEANVOICE_POCKETBASE_URL` when set.
+The runtime value comes from `CLEANVOICE_POCKETBASE_URL`, then `POCKETBASE_URL`,
+then this loopback default. The custom backend must be supplied separately.
 
 All requests include:
 

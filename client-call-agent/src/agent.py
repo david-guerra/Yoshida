@@ -35,9 +35,9 @@ load_dotenv(".env.local")
 PROMPT_PATH = (
     Path(__file__).resolve().parents[1] / "prompts" / "caller-agent-master-prompt.md"
 )
-DEFAULT_POCKETBASE_URL = "https://snowiness-difficult-finer.ngrok-free.dev"
+DEFAULT_POCKETBASE_URL = "http://127.0.0.1:8090"
 DEFAULT_LIVEKIT_INFERENCE_LLM_MODEL = "deepseek-ai/deepseek-v4-pro"
-DEFAULT_SIMULATED_CALLER_PHONE = "+491700000002"
+DEFAULT_SIMULATED_CALLER_PHONE = "+12025550102"
 DEFAULT_CLEANER_LANGUAGE = "en"
 SUPPORTED_CLEANER_LANGUAGES = {"ar", "de", "en", "pl", "ru", "tr", "uk"}
 AGENT_TIMEZONE = "Europe/Berlin"
@@ -279,13 +279,13 @@ async def preload_call_context(
             context["cleaner_briefing"] = briefing
             context["cleaner_preferences"] = preferences
         return context
-    except Exception as exc:
-        logger.warning("PocketBase preload failed for caller %s: %s", caller_phone, exc)
+    except Exception:
+        logger.warning("PocketBase preload failed; continuing without stored context")
         return {
             "lookup_status": "unavailable",
             "caller_phone": caller_phone,
             "role": "unknown",
-            "error": str(exc),
+            "error": "PocketBase is unavailable",
         }
 
 
@@ -316,7 +316,7 @@ class Assistant(Agent):
         context or when the preloaded cleaner preferences are unavailable.
 
         Args:
-            caller_phone: The cleaner phone number in E.164 format, for example +491700000001.
+            caller_phone: The cleaner phone number in E.164 format, for example +12025550101.
         """
 
         return await PocketBaseClient().get_cleaner_preferences(caller_phone)

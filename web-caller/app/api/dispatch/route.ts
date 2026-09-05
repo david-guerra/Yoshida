@@ -4,7 +4,7 @@ import { dispatchAgent } from "@/lib/livekit-dispatch";
 
 export const runtime = "nodejs";
 
-const DEFAULT_SIMULATED_CALLER_PHONE = "+491700000002";
+const DEFAULT_SIMULATED_CALLER_PHONE = "+12025550102";
 
 function simulatedCallerPhone() {
   return process.env.SIMULATED_CALLER_PHONE?.trim() || DEFAULT_SIMULATED_CALLER_PHONE;

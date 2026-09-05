@@ -2,8 +2,8 @@
 node_modules/
 
 # env files (keep .env.example committed; ignore real/local secrets)
-.env
-.env*.local
+.env*
+!.env.example
 
 # Next.js build output
 .next/
@@ -18,3 +18,20 @@ pocketbase/*.zip
 # misc
 .DS_Store
 *.log
+
+# private runtime data, captures, and recovery artifacts
+pb_backups/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite*
+recordings/
+transcripts/
+*.wav
+*.mp3
+*.m4a
+*.mp4
+*.webm
+*.bundle
+*.pem
+*.key
