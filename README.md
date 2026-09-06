@@ -40,11 +40,9 @@ flowchart LR
 
 The dashboard does not join the LiveKit room. The historical `agent/` and `web-cleaner/` names correspond to `client-call-agent/` and `dashboard/`. PocketBase binaries and runtime data are excluded. Earlier planning documents describe the hackathon's evolving design; this README describes the checked-in layout.
 
-## Team and contribution
+## Team
 
 Yoshida was built together by [David Guerra](https://github.com/david-guerra), [lishiiChan](https://github.com/lishiiChan), and [younaorg](https://github.com/younaorg) for the telli × LiveKit hackathon.
-
-David built the voice agent; his teammates built the frontend and backend. David subsequently worked across both to integrate and refine the demo. The result is shared team work. The team has agreed to publication and cleanup.
 
 The Python worker began from [LiveKit's agent starter](https://github.com/livekit-examples/agent-starter-python), and the frontends began from Next.js scaffolds. The conversation rules, PocketBase integration, caller flow, and cleaner UI are the project-specific layers. See [third-party notices](THIRD_PARTY_NOTICES.md).
 
