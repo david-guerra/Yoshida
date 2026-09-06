@@ -2,6 +2,8 @@
 
 The root README contains clean installation and verification commands. Run commands below from the repository root unless a component is explicitly selected.
 
+The project was renamed from CleanVoice to Yoshida. Existing `CLEANVOICE_*` environment variables, `/api/cleanvoice/*` routes, cookie names, and internal identifiers retain their original spelling for compatibility. Use the documented keys exactly as written.
+
 ## Environment files
 
 ```sh

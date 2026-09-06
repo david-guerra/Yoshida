@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Cleaner Desk",
+  title: "Yoshida",
   description: "Voice-agent front desk for cleaners — calls, bookings, clients.",
 };
 

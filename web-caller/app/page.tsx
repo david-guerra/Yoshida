@@ -121,7 +121,7 @@ export default function Home() {
       <div className="w-full max-w-md rounded-[2rem] border border-zinc-950/10 bg-[#fffdf8] p-6 shadow-2xl shadow-zinc-950/10">
         <header className="mb-8 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-            CleanVoice caller
+            Yoshida caller
           </p>
           <h1 className="mt-3 text-3xl font-semibold">Cleaning service</h1>
           <p className="mt-3 text-sm leading-6 text-zinc-600">

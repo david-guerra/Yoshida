@@ -14,7 +14,7 @@ export default async function HomePage() {
   return (
     <AppShell
       active="dashboard"
-      title="Cleaner Desk"
+      title="Yoshida"
       subtitle="Calls the voice agent has qualified, grouped by what needs you now."
       actions={
         <Link className={buttonClass("filled", "sm")} href="/orders/new">

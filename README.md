@@ -1,4 +1,6 @@
-# CleanVoice
+# Yoshida
+
+**A multilingual voice assistant for independent cleaners.** Formerly CleanVoice; Yoshida is the team’s chosen name, drawn from the teammates’ names.
 
 A hackathon voice AI prototype for independent cleaners facing a language barrier with German-speaking clients. A browser caller speaks German with an agent; the intended outcome is a tentative cleaning request that a cleaner can review in their own language.
 
@@ -40,7 +42,7 @@ The dashboard does not join the LiveKit room. The historical `agent/` and `web-c
 
 ## Team and contribution
 
-CleanVoice was built together by [David Guerra](https://github.com/david-guerra), [lishiiChan](https://github.com/lishiiChan), and [younaorg](https://github.com/younaorg) for the telli × LiveKit hackathon.
+Yoshida was built together by [David Guerra](https://github.com/david-guerra), [lishiiChan](https://github.com/lishiiChan), and [younaorg](https://github.com/younaorg) for the telli × LiveKit hackathon.
 
 David built the voice agent; his teammates built the frontend and backend. David subsequently worked across both to integrate and refine the demo. The result is shared team work. The team has agreed to publication and cleanup.
 
@@ -51,8 +53,8 @@ The Python worker began from [LiveKit's agent starter](https://github.com/liveki
 Use Node.js 24 and npm, Python 3.12, and [uv](https://docs.astral.sh/uv/). From a fresh clone:
 
 ```sh
-git clone https://github.com/david-guerra/CleanVoice.git
-cd CleanVoice
+git clone https://github.com/david-guerra/Yoshida.git
+cd Yoshida
 npm --prefix dashboard ci
 npm --prefix web-caller ci
 cd client-call-agent
@@ -83,9 +85,9 @@ For local UI startup, environment configuration, and the conditional live demo, 
 
 ## Media
 
-Actual dashboard capture from a disposable synthetic PocketBase database. The third booking appeared through realtime without a reload; this is not a recording of a live voice call.
+Dashboard capture from a disposable synthetic PocketBase database, taken before the Yoshida rename (the interface shown still says Cleaner Desk). The third booking appeared through realtime without a reload; this is not a recording of a live voice call.
 
-![CleanVoice dashboard with three fictional booking requests and a live connection](docs/media/dashboard-synthetic.jpg)
+![Yoshida dashboard with three fictional booking requests and a live connection](docs/media/dashboard-synthetic.jpg)
 
 The [media inventory](design/README.md) also records the team-approved historical design concept.
 
@@ -100,6 +102,6 @@ The [media inventory](design/README.md) also records the team-approved historica
 
 ## Publication and license
 
-MIT, with shared credit to David Guerra, lishiiChan, younaorg, and CleanVoice contributors. See [LICENSE](LICENSE). Upstream source notices, provider terms, and voice/model rights are separately documented in [third-party notices](THIRD_PARTY_NOTICES.md).
+MIT, with shared credit to David Guerra, lishiiChan, younaorg, and Yoshida contributors. See [LICENSE](LICENSE). Upstream source notices, provider terms, and voice/model rights are separately documented in [third-party notices](THIRD_PARTY_NOTICES.md).
 
-[Showcase audit and remaining gates](docs/showcase-audit.md) · [Security guidance](SECURITY.md) · [Active cleanup issue](https://github.com/david-guerra/CleanVoice/issues/2)
+[Showcase audit and remaining gates](docs/showcase-audit.md) · [Security guidance](SECURITY.md) · [Active cleanup issue](https://github.com/david-guerra/Yoshida/issues/2)

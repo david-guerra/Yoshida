@@ -1,4 +1,4 @@
-# CleanVoice dashboard
+# Yoshida dashboard
 
 Next.js cleaner UI: user login, bookings, calendar, and business preferences. The dashboard communicates with PocketBase over HTTP and browser realtime; it does not join a LiveKit room.
 

@@ -60,7 +60,7 @@ function Brand() {
         <SparkleIcon className="h-5 w-5" />
       </span>
       <span className="text-[17px] font-semibold tracking-tight text-label">
-        Cleaner Desk
+        Yoshida
       </span>
     </Link>
   );

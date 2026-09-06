@@ -1,10 +1,10 @@
 # Third-party notices and service dependencies
 
-CleanVoice team code is licensed under the root MIT license. Preserve the separately scoped notices below. This inventory distinguishes source licenses from hosted-service and model terms; it does not grant rights to provider voices or model weights.
+Yoshida team code is licensed under the root MIT license. Preserve the separately scoped notices below. This inventory distinguishes source licenses from hosted-service and model terms; it does not grant rights to provider voices or model weights.
 
 | Component | Provenance / terms | Scope and review |
 | --- | --- | --- |
-| Python agent scaffold | [LiveKit agent-starter-python MIT license](https://github.com/livekit-examples/agent-starter-python/blob/main/LICENSE), copyright 2025 LiveKit, Inc. | The full notice is retained in `licenses/livekit-agent-starter-MIT.txt`. CleanVoice modifies the scaffold's agent and prompt. |
+| Python agent scaffold | [LiveKit agent-starter-python MIT license](https://github.com/livekit-examples/agent-starter-python/blob/main/LICENSE), copyright 2025 LiveKit, Inc. | The full notice is retained in `licenses/livekit-agent-starter-MIT.txt`. Yoshida modifies the scaffold's agent and prompt. |
 | Next.js frontends | [Next.js MIT license](https://github.com/vercel/next.js/blob/canary/license.md) | Created from Next.js scaffolds. Dependency notices stay with their packages; unused starter SVGs are removed. |
 | LiveKit SDKs | [LiveKit Agents](https://github.com/livekit/agents) and installed package notices | SDK code licenses do not extend to all models, voices, or cloud services. |
 | PocketBase runtime | [PocketBase MIT license](https://github.com/pocketbase/pocketbase/blob/master/LICENSE.md) | Binary and local data are excluded. Setup was exercised with version 0.39.4. Download it from the official project and retain its bundled notice. |

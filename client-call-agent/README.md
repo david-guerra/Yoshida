@@ -1,4 +1,4 @@
-# CleanVoice caller agent
+# Yoshida caller agent
 
 Python LiveKit worker derived from the [LiveKit agent starter](https://github.com/livekit-examples/agent-starter-python). The project-specific layers are the caller prompt, PocketBase context preload and booking tools, and the voice demo flow. See the [upstream notice](../licenses/livekit-agent-starter-MIT.txt) and [team attribution status](../README.md#team-and-contribution).
 
