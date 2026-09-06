@@ -1,6 +1,6 @@
 # Showcase media
 
-`cleaner-dashboard-mobile-simple-mockup.png` is a historical mobile/tablet **design mockup**, not a screenshot of the application. David confirmed on 2026-09-05 that its names, requests, locations, and property-access notes are fictional and that team publication permission covers it. The earlier desktop mockup was removed in the local project history.
+`cleaner-dashboard-mobile-simple-mockup.png` is a historical mobile/tablet **design mockup**, not a screenshot of the application. Its names, requests, locations, and property-access notes are fictional.
 
 Only synthetic data may appear in new screenshots. Do not publish actual caller recordings, transcripts, access codes, or database exports.
 
