@@ -1,6 +1,6 @@
-# CleanVoice agent instructions
+# Yoshida agent instructions
 
-Read `README.md`, `docs/setup.md`, and `docs/backend-contract.md` before changes. The canonical project name is CleanVoice. This is a team hackathon prototype for supervised local demos, not a production service.
+Read `README.md`, `docs/setup.md`, and `docs/backend-contract.md` before changes. The canonical project name is Yoshida. This is a team hackathon prototype for supervised local demos, not a production service.
 
 ## Layout and verification
 

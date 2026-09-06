@@ -1,4 +1,4 @@
-# CleanVoice browser caller
+# Yoshida browser caller
 
 Next.js microphone/audio UI for a supervised local LiveKit demo. The server mints a short-lived token and dispatches `client-call-agent`; the browser joins `demo-call` as `caller`.
 

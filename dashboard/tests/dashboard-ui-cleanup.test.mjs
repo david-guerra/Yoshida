@@ -21,7 +21,7 @@ const ordersPageSource = readFileSync(
 
 test("dashboard home uses a simple page layout instead of a nested white panel", () => {
   assert.doesNotMatch(homePageSource, /rounded-lg border border-\[#e3e9e5\] bg-white/);
-  assert.match(homePageSource, /Cleaner Desk/);
+  assert.match(homePageSource, /Yoshida/);
   assert.match(homePageSource, /LiveOrdersDashboard/);
 });
 

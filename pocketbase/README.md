@@ -1,4 +1,4 @@
-# CleanVoice PocketBase demo backend
+# Yoshida PocketBase demo backend
 
 `setup_pb.py` reconstructs a fresh schema and seeds one synthetic cleaner login; `pb_hooks/` implements caller lookup, preferences, first-cleaner matching, tentative booking writes, and localized briefing text. Follow [setup](../docs/setup.md#fresh-synthetic-backend) with PocketBase **0.39.4**.
 

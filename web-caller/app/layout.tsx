@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Cleaning Service - Caller",
+  title: "Yoshida — Caller",
   description: "Browser caller that phones the AI cleaning-service agent over LiveKit.",
 };
 

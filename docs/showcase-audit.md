@@ -1,6 +1,6 @@
 # Showcase audit — 2026-09-05
 
-Tracked in [CleanVoice #2](https://github.com/david-guerra/CleanVoice/issues/2), handed off from [portfolio #29](https://github.com/david-guerra/portfolio/issues/29).
+Tracked in [Yoshida #2](https://github.com/david-guerra/Yoshida/issues/2), handed off from [portfolio #29](https://github.com/david-guerra/portfolio/issues/29).
 
 ## Scope and provenance
 
@@ -44,4 +44,4 @@ A new paid live voice call and Docker deployment were not exercised. The README 
 
 Secret scanning, push protection, private vulnerability reporting, and dependency alerts are enabled. Main-branch protection requires pull requests, passing component checks, and resolved conversations, and blocks force-pushes/deletion, including for administrators. No human approving review is required for this small team repository; CI and resolved discussions are required. GitHub returned validity checks as disabled even when requested; no claim is made that they are active. The cleanup adds root CI for both frontends, the agent, and PocketBase helpers, with read-only permissions and pinned action revisions, plus monthly dependency update configuration. The final export of 117 source files (excluding dependencies and runtime data) also passed Gitleaks with no findings.
 
-The portfolio source link should land after the CleanVoice cleanup is on public `main` and its CI succeeds. Preserve the hackathon-prototype label and do not claim production matching, tenant isolation, or independently validated live speech quality.
+The portfolio source link should land after the Yoshida cleanup is on public `main` and its CI succeeds. Preserve the hackathon-prototype label and do not claim production matching, tenant isolation, or independently validated live speech quality.

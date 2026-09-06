@@ -29,7 +29,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <SparkleIcon className="h-8 w-8" />
           </span>
           <h1 className="mt-4 text-[28px] font-semibold tracking-tight text-label">
-            Cleaner Desk
+            Yoshida
           </h1>
           <p className="mt-1.5 text-[15px] leading-6 text-secondary">
             Sign in to review the calls, clients, and bookings your voice agent
