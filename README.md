@@ -35,10 +35,10 @@ flowchart LR
 | `client-call-agent/` | Python LiveKit worker, German conversation prompt, PocketBase HTTP tools |
 | `dashboard/` | Next.js cleaner login, bookings, calendar, preferences, and realtime client |
 | `pocketbase/` | Schema setup, synthetic cleaner seed, HTTP hooks, and localization helpers |
-| `docs/` | Setup, backend contract, privacy review, and publication gates |
-| `design/` | Team-approved fictional design references |
+| `docs/` | Setup, backend contract, and demo screenshot |
+| `design/` | Fictional design references |
 
-The dashboard does not join the LiveKit room. The historical `agent/` and `web-cleaner/` names correspond to `client-call-agent/` and `dashboard/`. PocketBase binaries and runtime data are excluded. Earlier planning documents describe the hackathon's evolving design; this README describes the checked-in layout.
+The dashboard does not join the LiveKit room. The historical `agent/` and `web-cleaner/` names correspond to `client-call-agent/` and `dashboard/`. PocketBase binaries and runtime data are excluded.
 
 ## Team
 
@@ -87,7 +87,7 @@ Dashboard capture from a disposable synthetic PocketBase database, taken before 
 
 ![Yoshida dashboard with three fictional booking requests and a live connection](docs/media/dashboard-synthetic.jpg)
 
-The [media inventory](design/README.md) also records the team-approved historical design concept.
+The [media inventory](design/README.md) also records the historical design concept.
 
 ## Limitations and boundaries
 
@@ -98,8 +98,8 @@ The [media inventory](design/README.md) also records the team-approved historica
 - Audio, text, and tool context can reach configured inference providers. Retention, recording consent, deletion, and approved voice use have not been established for real callers.
 - Translations need native-speaker review, especially Polish, Ukrainian, and Arabic. There is no production matching or availability guarantee. The prototype has no production reliability or security assurance.
 
-## Publication and license
+## License
 
 MIT, with shared credit to David Guerra, lishiiChan, younaorg, and Yoshida contributors. See [LICENSE](LICENSE). Upstream source notices, provider terms, and voice/model rights are separately documented in [third-party notices](THIRD_PARTY_NOTICES.md).
 
-[Showcase audit and remaining gates](docs/showcase-audit.md) · [Security guidance](SECURITY.md) · [Active cleanup issue](https://github.com/david-guerra/Yoshida/issues/2)
+[Security guidance](SECURITY.md)

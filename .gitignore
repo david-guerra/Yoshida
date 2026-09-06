@@ -39,3 +39,12 @@ transcripts/
 # Python runtime output across components
 __pycache__/
 *.py[cod]
+
+# Local coding-assistant configuration and working notes
+.agents/
+.claude/
+.codex/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+/docs/superpowers/

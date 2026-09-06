@@ -14,8 +14,7 @@ import {
 import { ConnectionState, ParticipantKind, RoomEvent, type Participant } from "livekit-client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-// The agent and the cleaner view join this same room. Project convention
-// (see ../CLAUDE.md): hardcode "demo-call" everywhere for the demo.
+// The browser caller and voice agent share this fixed room for the local demo.
 const ROOM_NAME = "demo-call";
 const CALLER_IDENTITY = "caller";
 const DEFAULT_CALLER_PHONE = "+491700000002";
