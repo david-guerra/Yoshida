@@ -1,17 +1,21 @@
+import asyncio
 import json
 import logging
-import math
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    AudioConfig,
+    BackgroundAudioPlayer,
+    BuiltinAudioClip,
     JobContext,
     RunContext,
     TurnHandlingOptions,
@@ -31,14 +35,12 @@ load_dotenv(".env.local")
 PROMPT_PATH = (
     Path(__file__).resolve().parents[1] / "prompts" / "caller-agent-master-prompt.md"
 )
-DEFAULT_POCKETBASE_URL = "https://snowiness-difficult-finer.ngrok-free.dev"
+DEFAULT_POCKETBASE_URL = "http://127.0.0.1:8090"
 DEFAULT_LIVEKIT_INFERENCE_LLM_MODEL = "deepseek-ai/deepseek-v4-pro"
-DEFAULT_SIMULATED_CALLER_PHONE = "+491700000002"
-KEYBOARD_FILLER_TRANSCRIPT = "[Tastaturgeraeusch]"
-KEYBOARD_FILLER_SAMPLE_RATE = 24000
-KEYBOARD_FILLER_DELAY_SECONDS = 0.3
-KEYBOARD_FILLER_INTERVAL_SECONDS = 1.6
-KEYBOARD_FILLER_MAX_STEPS = 3
+DEFAULT_SIMULATED_CALLER_PHONE = "+12025550102"
+DEFAULT_CLEANER_LANGUAGE = "en"
+SUPPORTED_CLEANER_LANGUAGES = {"ar", "de", "en", "pl", "ru", "tr", "uk"}
+AGENT_TIMEZONE = "Europe/Berlin"
 
 
 def cleanvoice_pocketbase_url() -> str:
@@ -69,83 +71,60 @@ def _format_call_context(call_context: dict[str, Any]) -> str:
     return json.dumps(call_context, ensure_ascii=False, sort_keys=True, indent=2)
 
 
-def build_keyboard_filler_frames() -> list[rtc.AudioFrame]:
-    sample_rate = KEYBOARD_FILLER_SAMPLE_RATE
-    duration_seconds = 1.25
-    frame_samples = int(sample_rate * 0.02)
-    total_samples = int(sample_rate * duration_seconds)
-    click_offsets = [
-        0.02,
-        0.09,
-        0.15,
-        0.24,
-        0.33,
-        0.41,
-        0.50,
-        0.57,
-        0.67,
-        0.75,
-        0.86,
-        0.95,
-        1.05,
-        1.15,
-    ]
-    click_samples = [int(offset * sample_rate) for offset in click_offsets]
-    click_duration = int(sample_rate * 0.028)
-    pcm = bytearray()
-
-    for sample_index in range(total_samples):
-        value = 0.0
-        for click_index, click_start in enumerate(click_samples):
-            age = sample_index - click_start
-            if age < 0 or age >= click_duration:
-                continue
-
-            t = age / sample_rate
-            envelope = math.exp(-t * 135) * (1 - age / click_duration)
-            tone = math.sin(2 * math.pi * 2300 * t) + 0.35 * math.sin(
-                2 * math.pi * 4100 * t
-            )
-            noise_seed = (sample_index * 1103515245 + click_index * 12345) & 0x7FFFFFFF
-            noise = ((noise_seed % 65536) / 32768) - 1
-            value += envelope * (0.18 * tone + 0.08 * noise)
-
-        clamped = max(-0.3, min(0.3, value))
-        pcm.extend(int(clamped * 32767).to_bytes(2, "little", signed=True))
-
-    frames: list[rtc.AudioFrame] = []
-    bytes_per_sample = 2
-    frame_bytes = frame_samples * bytes_per_sample
-    for offset in range(0, len(pcm), frame_bytes):
-        chunk = bytes(pcm[offset : offset + frame_bytes])
-        if len(chunk) < frame_bytes:
-            chunk += b"\x00" * (frame_bytes - len(chunk))
-        frames.append(
-            rtc.AudioFrame(
-                chunk,
-                sample_rate=sample_rate,
-                num_channels=1,
-                samples_per_channel=frame_samples,
-            )
-        )
-
-    return frames
+def _valid_cleaner_language(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    language = value.strip().lower()
+    return language if language in SUPPORTED_CLEANER_LANGUAGES else None
 
 
-async def keyboard_filler_audio():
-    for frame in build_keyboard_filler_frames():
-        yield frame
+def cleaner_summary_language(value: Any) -> str:
+    return _valid_cleaner_language(value) or DEFAULT_CLEANER_LANGUAGE
 
 
-def keyboard_filler_source(context: RunContext):
-    def source(_step: int):
-        return context.session.say(
-            KEYBOARD_FILLER_TRANSCRIPT,
-            audio=keyboard_filler_audio(),
-            add_to_chat_ctx=False,
-        )
+def _language_from_mapping(data: Any) -> str | None:
+    if not isinstance(data, dict):
+        return None
 
-    return source
+    direct_fields = ("cleaner_language", "preferred_language", "language")
+    for field in direct_fields:
+        if language := _valid_cleaner_language(data.get(field)):
+            return language
+
+    for parent_key in ("cleaner", "preferences"):
+        nested = data.get(parent_key)
+        if isinstance(nested, dict):
+            for field in ("preferred_language", "language", "cleaner_language"):
+                if language := _valid_cleaner_language(nested.get(field)):
+                    return language
+
+    return None
+
+
+async def enrich_booking_payload_with_cleaner_language(
+    payload: dict[str, Any], pocketbase: Any
+) -> dict[str, Any]:
+    enriched = dict(payload)
+    language = _language_from_mapping(enriched)
+    cleaner_phone = enriched.get("cleaner_phone")
+
+    if language is None and isinstance(cleaner_phone, str) and cleaner_phone.strip():
+        try:
+            preferences = await pocketbase.get_cleaner_preferences(cleaner_phone)
+        except Exception:
+            logger.warning("Cleaner language lookup failed; using default language")
+            preferences = {}
+        language = _language_from_mapping(preferences)
+
+    language = language or DEFAULT_CLEANER_LANGUAGE
+    cleaner = (
+        dict(enriched["cleaner"]) if isinstance(enriched.get("cleaner"), dict) else {}
+    )
+    cleaner["preferred_language"] = language
+    enriched["cleaner"] = cleaner
+    enriched["cleaner_language"] = language
+
+    return enriched
 
 
 def load_caller_agent_prompt(
@@ -158,7 +137,14 @@ def load_caller_agent_prompt(
         "caller_phone": runtime_caller_phone,
         "role": "unknown",
     }
+    now = datetime.now(ZoneInfo(AGENT_TIMEZONE)).strftime("%A, %d %B %Y, %H:%M %Z")
     return f"""{prompt}
+
+## Current Date And Time
+
+The current date and time is {now}. Use this as the reference for any dates the
+caller mentions (for example "next Friday" or "the 22nd"). Resolve every date to
+a concrete date in the correct current year, and never book a date in the past.
 
 ## Runtime Demo Call Context
 
@@ -208,8 +194,7 @@ class PocketBaseClient:
 
     async def _json_or_tool_error(self, response: Any, action: str) -> dict[str, Any]:
         if not 200 <= response.status < 300:
-            body = await response.text()
-            raise ToolError(f"{action} failed with status {response.status}: {body}")
+            raise ToolError(f"{action} failed with status {response.status}")
         data = await response.json()
         if not isinstance(data, dict):
             raise ToolError(f"{action} returned an unexpected response.")
@@ -254,6 +239,7 @@ class PocketBaseClient:
             return await self._json_or_tool_error(response, "suggest_cleaner")
 
     async def create_booking(self, payload: dict[str, Any]) -> dict[str, Any]:
+        payload = await enrich_booking_payload_with_cleaner_language(payload, self)
         async with self.session.post(
             f"{self.base_url}/api/cleanvoice/create-booking",
             headers={
@@ -281,20 +267,20 @@ async def preload_call_context(
             "identify_caller": identity,
         }
         if role == "cleaner":
-            context["cleaner_briefing"] = await pocketbase.get_cleaner_briefing(
-                caller_phone
+            briefing, preferences = await asyncio.gather(
+                pocketbase.get_cleaner_briefing(caller_phone),
+                pocketbase.get_cleaner_preferences(caller_phone),
             )
-            context["cleaner_preferences"] = await pocketbase.get_cleaner_preferences(
-                caller_phone
-            )
+            context["cleaner_briefing"] = briefing
+            context["cleaner_preferences"] = preferences
         return context
-    except Exception as exc:
-        logger.warning("PocketBase preload failed for caller %s: %s", caller_phone, exc)
+    except Exception:
+        logger.warning("PocketBase preload failed; continuing without stored context")
         return {
             "lookup_status": "unavailable",
             "caller_phone": caller_phone,
             "role": "unknown",
-            "error": str(exc),
+            "error": "PocketBase is unavailable",
         }
 
 
@@ -319,13 +305,13 @@ class Assistant(Agent):
     async def get_cleaner_preferences(
         self, context: RunContext, caller_phone: str
     ) -> dict[str, Any]:
-        """Get cleaner working hours, preferred services, service locations, and business rules.
+        """Get cleaner language, working hours, preferred services, service locations, and business rules.
 
         Use this only when a cleaner caller asks about their own stored profile
         context or when the preloaded cleaner preferences are unavailable.
 
         Args:
-            caller_phone: The cleaner phone number in E.164 format, for example +491700000001.
+            caller_phone: The cleaner phone number in E.164 format, for example +12025550101.
         """
 
         return await PocketBaseClient().get_cleaner_preferences(caller_phone)
@@ -363,13 +349,10 @@ class Assistant(Agent):
         booking_request = raw_arguments.get("booking_request")
         if not isinstance(booking_request, dict):
             raise ToolError("suggest_cleaner requires a booking_request object.")
-        async with context.with_filler(
-            keyboard_filler_source(context),
-            delay=KEYBOARD_FILLER_DELAY_SECONDS,
-            interval=KEYBOARD_FILLER_INTERVAL_SECONDS,
-            max_steps=KEYBOARD_FILLER_MAX_STEPS,
-        ):
-            return await PocketBaseClient().suggest_cleaner(booking_request)
+        await context.update(
+            "Ich prüfe kurz, welche Reinigungskraft zu dieser Anfrage passt."
+        )
+        return await PocketBaseClient().suggest_cleaner(booking_request)
 
     @function_tool(
         raw_schema={
@@ -378,7 +361,8 @@ class Assistant(Agent):
             "description": (
                 "Create a tentative cleaning booking in PocketBase after collecting "
                 "the caller phone, optional cleaner_phone from suggest_cleaner, "
-                "client, address, booking, booking_notes, and client_preferences fields."
+                "cleaner_language, client, address, booking, booking_notes, "
+                "and client_preferences fields."
             ),
             "parameters": {
                 "type": "object",
@@ -403,13 +387,8 @@ class Assistant(Agent):
         payload = raw_arguments.get("payload")
         if not isinstance(payload, dict):
             raise ToolError("create_booking requires a payload object.")
-        async with context.with_filler(
-            keyboard_filler_source(context),
-            delay=KEYBOARD_FILLER_DELAY_SECONDS,
-            interval=KEYBOARD_FILLER_INTERVAL_SECONDS,
-            max_steps=KEYBOARD_FILLER_MAX_STEPS,
-        ):
-            return await PocketBaseClient().create_booking(payload)
+        await context.update("Ich speichere die Anfrage kurz für die Reinigungskraft.")
+        return await PocketBaseClient().create_booking(payload)
 
 
 server = AgentServer()
@@ -423,36 +402,33 @@ async def my_agent(ctx: JobContext):
         "room": ctx.room.name,
     }
     caller_phone = caller_phone_from_job_metadata(ctx.job.metadata)
-    call_context = await preload_call_context(caller_phone)
+
+    # Kick off the PocketBase preload concurrently so it overlaps model warmup
+    # and the greeting instead of delaying the first spoken word.
+    preload_task = asyncio.create_task(preload_call_context(caller_phone))
 
     tts_options = {"model": "elevenlabs/eleven_flash_v2_5", "language": "de"}
     if elevenlabs_voice_id := os.getenv("ELEVENLABS_VOICE_ID"):
         tts_options["voice"] = elevenlabs_voice_id
 
-    # Set up a voice AI pipeline using LiveKit Inference, ElevenLabs, Deepgram, and the LiveKit turn detector
     session = AgentSession(
-        # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
-        # See all available models at https://docs.livekit.io/agents/models/stt/
         stt=inference.STT(model="deepgram/nova-3", language="multi"),
-        # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
-        # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
         tts=inference.TTS(**tts_options),
-        # The LiveKit turn detector determines when the user is done speaking and the agent should respond.
-        # TurnDetector is an end-of-turn model that listens to the user's audio directly, combining
-        # semantic understanding with acoustic cues (intonation, pitch, rhythm) for state-of-the-art accuracy.
-        # AgentSession supplies the required VAD automatically.
-        # See more at https://docs.livekit.io/agents/build/turns
         turn_handling=TurnHandlingOptions(
             turn_detection=inference.TurnDetector(),
         ),
-        # allow the LLM to generate a response while waiting for the end of turn
-        # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
         preemptive_generation=True,
     )
 
-    # Start the session, which initializes the voice pipeline and warms up the models
+    loading_context = {
+        "lookup_status": "loading",
+        "caller_phone": caller_phone,
+        "role": "unknown",
+    }
+    assistant = Assistant(caller_phone=caller_phone, call_context=loading_context)
+
     await session.start(
-        agent=Assistant(caller_phone=caller_phone, call_context=call_context),
+        agent=assistant,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
@@ -463,23 +439,40 @@ async def my_agent(ctx: JobContext):
         ),
     )
 
-    # # Add a virtual avatar to the session, if desired
-    # # For other providers, see https://docs.livekit.io/agents/models/avatar/
-    # avatar = anam.AvatarSession(
-    #     persona_config=anam.PersonaConfig(
-    #         name="...",
-    #         avatarId="...",  # See https://docs.livekit.io/agents/models/avatar/plugins/anam
-    #     ),
-    # )
-    # # Start the avatar and wait for it to join
-    # await avatar.start(session, room=ctx.room)
+    # Play LiveKit's built-in keyboard typing as a thinking sound for the full
+    # duration of any tool call (suggest_cleaner / create_booking), so the caller
+    # never hears dead air while PocketBase is queried.
+    background_audio = BackgroundAudioPlayer(
+        thinking_sound=[
+            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING, volume=0.8),
+            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING2, volume=0.7),
+        ],
+    )
+    await background_audio.start(room=ctx.room, agent_session=session)
 
+    # Greet the caller in German immediately, without waiting on PocketBase.
     await session.generate_reply(
         instructions=(
             "Greet the caller in German. Say that this is the Reinigung front desk, "
             "ask how you can help with the cleaning request, and keep it to one short sentence."
         )
     )
+
+    # Context loaded during warmup + greeting. Fold it into the live agent.
+    call_context = await preload_task
+    await assistant.update_instructions(
+        load_caller_agent_prompt(caller_phone=caller_phone, call_context=call_context)
+    )
+
+    # A cleaner who calls in expects their briefing read. Context arrived after
+    # the greeting, so prompt the agent to read it now.
+    if call_context.get("role") == "cleaner":
+        await session.generate_reply(
+            instructions=(
+                "Read the cleaner briefing from the preloaded context verbatim, "
+                "in a natural spoken voice."
+            )
+        )
 
 
 if __name__ == "__main__":

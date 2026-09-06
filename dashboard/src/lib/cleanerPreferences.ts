@@ -69,6 +69,18 @@ export const languageLabels: Record<string, string> = {
   uk: "Ukrainian",
 };
 
+const defaultCleanerLanguage = "en";
+const supportedCleanerLanguages = new Set(Object.keys(languageLabels));
+
+export function normalizeCleanerLanguage(value: unknown) {
+  if (typeof value !== "string") {
+    return defaultCleanerLanguage;
+  }
+
+  const language = value.trim().toLowerCase();
+  return supportedCleanerLanguages.has(language) ? language : defaultCleanerLanguage;
+}
+
 function emptyPreference(cleanerId: string): CleanerPreferenceRecord {
   return {
     id: "",
@@ -179,7 +191,7 @@ function normalizeCleaner(cleaner: CleanerRecord): CleanerProfile {
     name: cleaner.name ?? "",
     phone: cleaner.phone ?? "",
     email: cleaner.email ?? "",
-    preferred_language: cleaner.preferred_language ?? "en",
+    preferred_language: normalizeCleanerLanguage(cleaner.preferred_language),
     service_areas: normalizeStringArray(cleaner.service_areas),
     skills: normalizeStringArray(cleaner.skills),
   };
@@ -198,23 +210,46 @@ export async function getCleanerSettings(
   cleanerId: string,
   token?: string,
 ): Promise<CleanerSettings> {
-  const cleaner = await getCleanerProfile(cleanerId, token);
+  try {
+    const cleaner = await getCleanerProfile(cleanerId, token);
 
-  const params = new URLSearchParams({
-    filter: `cleaner = "${cleanerId}"`,
-    perPage: "1",
-  });
+    const params = new URLSearchParams({
+      filter: `cleaner = "${cleanerId}"`,
+      perPage: "1",
+    });
 
-  const preferenceData = await pocketBaseRequest<
-    PocketBaseList<CleanerPreferenceRecord>
-  >("/api/collections/cleaner_preferences/records", {
-    auth: token ? "none" : "required",
-    params,
-    token,
-  });
+    const preferenceData = await pocketBaseRequest<
+      PocketBaseList<CleanerPreferenceRecord>
+    >("/api/collections/cleaner_preferences/records", {
+      auth: token ? "none" : "required",
+      params,
+      token,
+    });
 
-  return {
-    cleaner,
-    preferences: normalizePreference(cleanerId, preferenceData.items?.[0]),
-  };
+    return {
+      cleaner,
+      preferences: normalizePreference(cleanerId, preferenceData.items?.[0]),
+    };
+  } catch (error) {
+    // PocketBase unreachable: fall back to an empty profile so the shell and
+    // settings page still render instead of crashing the route.
+    console.warn(
+      `[dashboard] Could not load cleaner settings from PocketBase: ${
+        (error as Error).message.split("\n")[0]
+      }`,
+    );
+
+    return {
+      cleaner: {
+        id: cleanerId,
+        name: "",
+        phone: "",
+        email: "",
+        preferred_language: normalizeCleanerLanguage(undefined),
+        service_areas: [],
+        skills: [],
+      },
+      preferences: normalizePreference(cleanerId, undefined),
+    };
+  }
 }

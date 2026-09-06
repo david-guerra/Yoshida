@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 // (see ../CLAUDE.md): hardcode "demo-call" everywhere for the demo.
 const ROOM_NAME = "demo-call";
 const CALLER_IDENTITY = "caller";
+const DEFAULT_CALLER_PHONE = "+491700000002";
 
 type CallState = "ready" | "connecting" | "live" | "ended";
 
@@ -58,6 +59,7 @@ export default function Home() {
   const [token, setToken] = useState<string | null>(null);
   const [callState, setCallState] = useState<CallState>("ready");
   const [error, setError] = useState<string | null>(null);
+  const [phone, setPhone] = useState(DEFAULT_CALLER_PHONE);
 
   const startCall = useCallback(async () => {
     setError(null);
@@ -67,6 +69,8 @@ export default function Home() {
       return;
     }
 
+    const callerPhone = phone.trim() || DEFAULT_CALLER_PHONE;
+
     setCallState("connecting");
     try {
       await ensureMicrophonePermission();
@@ -74,7 +78,7 @@ export default function Home() {
       const res = await fetch(
         `/api/token?room=${encodeURIComponent(ROOM_NAME)}&identity=${encodeURIComponent(
           CALLER_IDENTITY,
-        )}`,
+        )}&phone=${encodeURIComponent(callerPhone)}`,
       );
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -86,7 +90,7 @@ export default function Home() {
       setError(formatCallError(err));
       setCallState("ready");
     }
-  }, [serverUrl]);
+  }, [serverUrl, phone]);
 
   const endCall = useCallback(() => {
     setToken(null);
@@ -137,13 +141,34 @@ export default function Home() {
         </div>
 
         {!token ? (
-          <button
-            onClick={startCall}
-            disabled={callState === "connecting"}
-            className="flex h-16 w-full items-center justify-center rounded-full bg-emerald-600 px-6 text-base font-semibold text-white transition hover:bg-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {callState === "connecting" ? "Connecting..." : "Start call"}
-          </button>
+          <div className="flex flex-col gap-3">
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
+                Calling from
+              </span>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                disabled={callState === "connecting"}
+                placeholder={DEFAULT_CALLER_PHONE}
+                inputMode="tel"
+                className="mt-1.5 h-12 w-full rounded-2xl border border-zinc-950/10 bg-zinc-50 px-4 text-base font-medium text-zinc-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/15"
+              />
+              <span className="mt-1.5 block text-xs text-zinc-500">
+                Simulates the caller&apos;s number. The agent looks this up in
+                PocketBase — an unknown number is a new client; the cleaner&apos;s
+                own number triggers the cleaner briefing.
+              </span>
+            </label>
+            <button
+              onClick={startCall}
+              disabled={callState === "connecting"}
+              className="flex h-16 w-full items-center justify-center rounded-full bg-emerald-600 px-6 text-base font-semibold text-white transition hover:bg-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {callState === "connecting" ? "Connecting..." : "Start call"}
+            </button>
+          </div>
         ) : (
           <LiveKitRoom
             serverUrl={serverUrl!}

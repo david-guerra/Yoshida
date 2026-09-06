@@ -1,13 +1,19 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import DashboardHeader from "@/src/components/DashboardHeader";
+import type { ReactNode } from "react";
+import AppShell from "@/src/components/AppShell";
+import Badge, { statusTone } from "@/src/components/ui/Badge";
+import { Card, InsetGroup } from "@/src/components/ui/Card";
+import {
+  ClockIcon,
+  KeyIcon,
+  MapPinIcon,
+  MessageIcon,
+} from "@/src/components/ui/icons";
 import { requireCleanerSession } from "@/src/lib/auth";
 import {
-  formatAppointment,
   formatDate,
   formatTime,
   getOrder,
-  type OrderRecord,
 } from "@/src/lib/orders";
 
 type OrderDetailPageProps = {
@@ -16,27 +22,73 @@ type OrderDetailPageProps = {
   }>;
 };
 
-function StatusBadge({ order }: { order: OrderRecord }) {
-  const color =
-    order.tone === "green"
-      ? "bg-[#edf8f1] text-[#3f8a5c]"
-      : order.tone === "red"
-        ? "bg-[#fff0ef] text-[#b84b3e]"
-        : "bg-[#fff4e8] text-[#b56c2f]";
-
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <span className={`rounded-full px-3 py-1 text-sm font-semibold ${color}`}>
-      {order.status}
-    </span>
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <span className="shrink-0 text-[15px] text-secondary">{label}</span>
+      <span className="truncate text-right text-[15px] font-medium text-label">
+        {value}
+      </span>
+    </div>
   );
 }
 
-function DetailItem({ label, value }: { label: string; value: string }) {
+function TextCard({
+  icon,
+  title,
+  body,
+}: {
+  icon: ReactNode;
+  title: string;
+  body: string;
+}) {
   return (
-    <div className="rounded-2xl border border-[#e1e6dd] bg-white px-4 py-3 shadow-sm">
-      <p className="text-xs font-bold uppercase text-[#65756a]">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-[#25312a]">{value}</p>
-    </div>
+    <Card>
+      <div className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-label">
+        <span className="text-accent">{icon}</span>
+        {title}
+      </div>
+      <p className="text-[15px] leading-6 text-secondary">{body}</p>
+    </Card>
+  );
+}
+
+function NoteList({
+  title,
+  icon,
+  emptyText,
+  items,
+}: {
+  title: string;
+  icon: ReactNode;
+  emptyText: string;
+  items: { id: string; type: string; importance: string; note: string }[];
+}) {
+  return (
+    <Card>
+      <div className="mb-3 flex items-center gap-2 text-[15px] font-semibold text-label">
+        <span className="text-accent">{icon}</span>
+        {title}
+      </div>
+      {items.length ? (
+        <div className="space-y-3">
+          {items.map((item) => (
+            <div key={item.id}>
+              <div className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.04em] text-tertiary">
+                {item.type}
+                <span className="text-tertiary">·</span>
+                {item.importance}
+              </div>
+              <p className="mt-1 text-[15px] leading-6 text-secondary">
+                {item.note}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[15px] text-secondary">{emptyText}</p>
+      )}
+    </Card>
   );
 }
 
@@ -52,132 +104,91 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
   const { order, notes, preferences } = detail;
 
   return (
-    <main className="min-h-screen bg-[#f7f8f4] px-4 py-5 text-[#162018] sm:px-8">
-      <DashboardHeader active="orders" />
-
-      <section className="mx-auto max-w-6xl">
-        <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <Link
-              className="mb-4 inline-block text-sm font-semibold text-[#2f6b4f] hover:text-[#1d3f30]"
-              href="/orders"
-            >
-              {"<"} Back to orders
-            </Link>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-4xl font-semibold tracking-normal text-[#10231d]">
-                {order.customerName}
-              </h1>
-              <StatusBadge order={order} />
-            </div>
-            <p className="mt-2 text-sm text-[#65756a]">
-              {order.service} in {order.location}
+    <AppShell
+      active="orders"
+      title={order.customerName}
+      backHref="/orders"
+      actions={<Badge tone={statusTone(order.tone)}>{order.status}</Badge>}
+    >
+      {/* Hero summary */}
+      <Card className="mb-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.05em] text-secondary">
+              {order.service}
+            </p>
+            <h2 className="mt-1 truncate text-[26px] font-semibold tracking-tight text-label">
+              {order.customerName}
+            </h2>
+            <p className="mt-1 flex items-center gap-1.5 text-[15px] text-secondary">
+              <MapPinIcon className="h-4 w-4 text-tertiary" />
+              {order.location}
             </p>
           </div>
-
-          <div className="rounded-2xl border border-[#e1e6dd] bg-white px-4 py-3 text-right shadow-sm">
-            <p className="text-xs font-bold uppercase text-[#65756a]">
-              Order ID
+          <div className="shrink-0 rounded-group bg-canvas px-4 py-3 text-right">
+            <p className="text-[13px] font-medium text-secondary">
+              {formatDate(order.start)}
             </p>
-            <p className="mt-1 text-lg font-semibold text-[#25312a]">
-              {order.orderId}
+            <p className="mt-0.5 text-[20px] font-semibold tracking-tight text-label">
+              {formatTime(order.start)} – {formatTime(order.end)}
             </p>
           </div>
         </div>
+      </Card>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <DetailItem label="Order ID" value={order.orderId} />
-          <DetailItem label="Customer ID" value={order.customerId} />
-          <DetailItem label="Date" value={formatDate(order.start)} />
-          <DetailItem
+      <div className="grid gap-5 lg:grid-cols-2">
+        <InsetGroup header="Appointment">
+          <InfoRow label="Date" value={formatDate(order.start)} />
+          <InfoRow
             label="Time"
-            value={`${formatTime(order.start)} - ${formatTime(order.end)}`}
+            value={`${formatTime(order.start)} – ${formatTime(order.end)}`}
           />
-          <DetailItem label="Location" value={order.location} />
-          <DetailItem label="Price" value={order.price} />
-          <DetailItem label="Status" value={order.status} />
-          <DetailItem label="Created at" value={order.createdAt} />
-          <DetailItem label="Appointment" value={formatAppointment(order)} />
-          <DetailItem label="Customer phone" value={order.customerPhone} />
-          <DetailItem label="Customer email" value={order.customerEmail} />
-          <DetailItem label="Estimated hours" value={order.estimatedHours} />
-        </div>
+          <InfoRow label="Location" value={order.location} />
+          <InfoRow label="Price" value={order.price} />
+          <InfoRow label="Estimated hours" value={order.estimatedHours} />
+          <InfoRow label="Status" value={order.status} />
+        </InsetGroup>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-[#25312a]">
-              Call summary
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-[#65756a]">
-              {order.summary}
-            </p>
-          </div>
+        <InsetGroup header="Client" footer={`Order ${order.orderId}`}>
+          <InfoRow label="Customer ID" value={order.customerId} />
+          <InfoRow label="Phone" value={order.customerPhone} />
+          <InfoRow label="Email" value={order.customerEmail} />
+          <InfoRow label="Created" value={order.createdAt} />
+        </InsetGroup>
+      </div>
 
-          <div className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-[#25312a]">
-              Cleaner briefing
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-[#65756a]">
-              {order.cleanerBriefing}
-            </p>
-          </div>
-        </div>
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <TextCard
+          icon={<MessageIcon className="h-5 w-5" />}
+          title="Call summary"
+          body={order.summary}
+        />
+        <TextCard
+          icon={<ClockIcon className="h-5 w-5" />}
+          title="Cleaner briefing"
+          body={order.cleanerBriefing}
+        />
+      </div>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-[#25312a]">
-              Access notes
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-[#65756a]">
-              {order.accessNotes}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-[#25312a]">
-              Booking notes
-            </h2>
-            <div className="mt-3 space-y-3">
-              {notes.length ? (
-                notes.map((note) => (
-                  <div key={note.id}>
-                    <p className="text-sm font-semibold text-[#25312a]">
-                      {note.type} - {note.importance}
-                    </p>
-                    <p className="mt-1 text-sm text-[#65756a]">{note.note}</p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-[#65756a]">No booking notes saved.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[#e1e6dd] bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-[#25312a]">
-              Client preferences
-            </h2>
-            <div className="mt-3 space-y-3">
-              {preferences.length ? (
-                preferences.map((preference) => (
-                  <div key={preference.id}>
-                    <p className="text-sm font-semibold text-[#25312a]">
-                      {preference.type} - {preference.importance}
-                    </p>
-                    <p className="mt-1 text-sm text-[#65756a]">
-                      {preference.note}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-[#65756a]">
-                  No client preferences saved.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
+      <div className="mt-5 grid gap-5 lg:grid-cols-3">
+        <TextCard
+          icon={<KeyIcon className="h-5 w-5" />}
+          title="Access notes"
+          body={order.accessNotes}
+        />
+        <NoteList
+          title="Booking notes"
+          icon={<MessageIcon className="h-5 w-5" />}
+          emptyText="No booking notes saved."
+          items={notes}
+        />
+        <NoteList
+          title="Client preferences"
+          icon={<MessageIcon className="h-5 w-5" />}
+          emptyText="No client preferences saved."
+          items={preferences}
+        />
+      </div>
+    </AppShell>
   );
 }

@@ -1,35 +1,18 @@
-# web-caller/
+# CleanVoice browser caller
 
-Browser client that simulates a **person phoning the cleaning service**. It joins a
-LiveKit room as the `caller` participant (publishing the mic, playing the agent's audio)
-and talks to the Python voice agent in [`../client-call-agent`](../client-call-agent).
+Next.js microphone/audio UI for a supervised local LiveKit demo. The server mints a short-lived token and dispatches `client-call-agent`; the browser joins `demo-call` as `caller`.
 
-Built with Next.js (App Router) + TypeScript + Tailwind, using
-[`@livekit/components-react`](https://docs.livekit.io/reference/components/react/) and
-`livekit-client`.
+From this directory:
 
-## Setup
-
-```bash
-cp .env.example .env.local   # then fill in your LiveKit credentials
-npm install
-npm run dev                  # http://localhost:3000
+```sh
+npm ci
+npm test
+npm run lint
+npm run build
+cp .env.example .env.local
+npm run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
-Required env (in `.env.local`):
+The UI renders without credentials. A call requires your own LiveKit project, a running agent, and the separate PocketBase backend for booking tools. Configure `NEXT_PUBLIC_LIVEKIT_URL` before building. Keep API key/secret server-only. See [setup](../docs/setup.md).
 
-| Variable                  | Used by         | Notes                                            |
-| ------------------------- | --------------- | ------------------------------------------------ |
-| `LIVEKIT_API_KEY`         | `/api/token`    | Server-only. Never exposed to the browser.       |
-| `LIVEKIT_API_SECRET`      | `/api/token`    | Server-only.                                     |
-| `NEXT_PUBLIC_LIVEKIT_URL` | browser client  | The `wss://` URL the caller connects to.         |
-
-## How it works
-
-- [`app/page.tsx`](app/page.tsx) — "Start call" fetches a token from `/api/token`, then
-  mounts `<LiveKitRoom audio video={false}>`. `<RoomAudioRenderer>` plays the agent's
-  voice; `<CallSession>` shows connection state and a mute / end-call control.
-- [`app/api/token/route.ts`](app/api/token/route.ts) — mints a LiveKit access token with
-  `livekit-server-sdk` for a given `room` + `identity`.
-
-Both the caller and the agent must join the same room (`demo-call`, per the project brief in [../CLAUDE.md](../CLAUDE.md)).
+The token/dispatch routes currently lack authentication and rate limiting and use a fixed demo identity. Keep a credentialed instance on loopback. The tests inspect source contracts; they do not make a voice call.

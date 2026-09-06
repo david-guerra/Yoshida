@@ -41,6 +41,7 @@ type PocketBaseNote = {
   id: string;
   type?: string;
   note?: string;
+  note_translated?: string;
   importance?: string;
   read_to_cleaner?: boolean;
 };
@@ -49,6 +50,7 @@ type PocketBasePreference = {
   id: string;
   type?: string;
   note?: string;
+  note_translated?: string;
   importance?: string;
   is_persistent?: boolean;
 };
@@ -60,12 +62,23 @@ export async function getOrders(cleanerId: string, token?: string) {
     expand: "client,address,cleaner",
   });
 
-  const data = await pocketBaseRequest<PocketBaseList<PocketBaseBooking>>(
-    "/api/collections/bookings/records",
-    { auth: token ? "none" : "optional", params, token },
-  );
+  try {
+    const data = await pocketBaseRequest<PocketBaseList<PocketBaseBooking>>(
+      "/api/collections/bookings/records",
+      { auth: token ? "none" : "optional", params, token },
+    );
 
-  return (data.items ?? []).map(mapBooking);
+    return (data.items ?? []).map(mapBooking);
+  } catch (error) {
+    // PocketBase unreachable/misconfigured: render an empty dashboard rather
+    // than crashing the route. The realtime sync indicator surfaces the outage.
+    console.warn(
+      `[dashboard] Could not load bookings from PocketBase: ${
+        (error as Error).message.split("\n")[0]
+      }`,
+    );
+    return [];
+  }
 }
 
 async function getBookingNotes(orderId: string, token?: string) {
@@ -83,7 +96,7 @@ async function getBookingNotes(orderId: string, token?: string) {
     data.items?.map((item) => ({
       id: item.id,
       type: item.type ?? "other",
-      note: item.note ?? "",
+      note: item.note_translated || item.note || "",
       importance: item.importance ?? "normal",
       readToCleaner: Boolean(item.read_to_cleaner),
     })) ?? []
@@ -109,7 +122,7 @@ async function getClientPreferences(customerId: string, token?: string) {
     data.items?.map((item) => ({
       id: item.id,
       type: item.type ?? "preference",
-      note: item.note ?? "",
+      note: item.note_translated || item.note || "",
       importance: item.importance ?? "normal",
       isPersistent: Boolean(item.is_persistent),
     })) ?? []
