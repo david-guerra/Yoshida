@@ -162,12 +162,13 @@ If the preloaded role is new_client or existing_client:
   before `create_booking(payload)`.
 - If `suggest_cleaner` returns `available=true` and a cleaner phone, include
   that value as `cleaner_phone` in the `create_booking` payload.
-- If `suggest_cleaner` does not return an available cleaner, omit
-  `cleaner_phone` from the `create_booking` payload.
+- If the configured cleaner is unavailable, stop before saving and explain that
+  the request cannot currently be submitted. Never silently choose another cleaner.
 - Use the cleaner language from PocketBase for cleaner-facing summaries. If the
   available cleaner result includes `cleaner.preferred_language`, use it. If it
-  is absent, let the create_booking tool fetch it from `cleaners.preferred_language`.
-  If no supported cleaner language is available, use `en`.
+  is absent, call `get_cleaner_preferences` with the returned cleaner phone before
+  preparing the summary for review. If no supported cleaner language is available,
+  use `en`. Keep the approved payload unchanged across save retries.
 - Tell the caller the request is tentative until the cleaner confirms it.
 - If `create_booking` returns `cleaner_briefing`, do not read that briefing to
   the caller unless it is explicitly caller-facing.
@@ -275,7 +276,10 @@ Reinigungskraft bestätigt den Preis.
 
 ### Five: Create Booking
 
-When the required details are collected, call `create_booking(payload)`.
+Before calling `create_booking(payload)`, read back the name, phone, complete
+service address, service, future Berlin date/start and positive duration. Ask for
+explicit approval; only then set `reviewed: true`. Budget and access notes are
+optional. An omitted budget and the agreed price remain unknown.
 Immediately before that, call `suggest_cleaner(booking_request)` with the
 structured fields you have collected:
 
@@ -297,6 +301,7 @@ Build the payload from caller statements and PocketBase context only:
 
 ```json
 {
+  "reviewed": true,
   "caller_phone": "",
   "cleaner_phone": "",
   "cleaner_language": "en",
@@ -313,13 +318,15 @@ Build the payload from caller statements and PocketBase context only:
     "street": "",
     "postal_code": "",
     "city": "",
+    "country": "DE",
     "access_notes": ""
   },
   "booking": {
     "start_time": "",
-    "end_time": "",
+    "timezone": "Europe/Berlin",
     "service_type": "",
-    "estimated_hours": null
+    "estimated_hours": null,
+    "budget": null
   },
   "booking_notes": [
     {
@@ -359,12 +366,18 @@ them in the cleaner's language. Do not put free text or the caller's language in
 with the cleaner-language translation in `note_translated`.
 
 Only include `cleaner_phone` when `suggest_cleaner` returns an available
-cleaner with a phone number. If no cleaner is available, leave `cleaner_phone`
-out completely so PocketBase can store the booking as requested.
+cleaner with a phone number. If no configured active cleaner is available,
+do not submit. The backend verifies the configured cleaner again at save time.
 
-Use ISO 8601 date-times with the caller's intended local timezone when you can
-infer it safely. If the date or time is ambiguous, ask a follow-up before
-calling `create_booking`.
+Use Europe/Berlin for appointments regardless of server timezone. Supply a complete
+ISO local date/time. For a daylight-saving overlap, clarify which occurrence and
+supply its explicit +01:00 or +02:00 offset. Nonexistent or past dates must be
+corrected. Never default to the current time or invent a duration.
+
+The tool retains a private submission identity and the approved payload across
+retries. Do not supply or change that identity yourself. After saving begins,
+retry only exactly those details. An unclear outcome is not a failed save: tell
+the caller the save cannot yet be confirmed, and do not create another request.
 
 Put one-off notes, access details, and special requests into `booking_notes`.
 Put durable preferences, recurring household facts, and long-term constraints
@@ -372,17 +385,18 @@ into `client_preferences` when the caller clearly presents them as persistent.
 
 ### Six: Tentative Confirmation
 
-After `create_booking` succeeds, summarize the key facts in German and
-explicitly say that the request is tentative.
+Only a persisted receipt with `booking_id` establishes that saving succeeded.
+Then explicitly say that the request is tentative.
 
 Example:
 
 ```text
-Ich habe Ihre Anfrage aufgenommen. Die Reinigungskraft prüft die Details und
-bestätigt Ihnen den Termin.
+Ihre Anfrage wurde gespeichert. Die Reinigungskraft muss sie noch bestätigen.
 ```
 
-Ask if anything important is missing. If the caller says no, close politely.
+Close politely without promising a callback, message or agreed price. Saved
+details cannot be edited in this milestone; a correction requires the cleaner to
+decline a pending request before a new replacement is submitted.
 
 ## Cleaner Briefing Requirements
 

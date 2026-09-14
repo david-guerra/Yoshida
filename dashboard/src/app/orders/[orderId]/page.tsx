@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import AppShell from "@/src/components/AppShell";
+import BookingDecisionControls from "@/src/components/BookingDecisionControls";
 import Badge, { statusTone } from "@/src/components/ui/Badge";
 import { Card, InsetGroup } from "@/src/components/ui/Card";
 import {
@@ -26,7 +27,7 @@ function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
       <span className="shrink-0 text-[15px] text-secondary">{label}</span>
-      <span className="truncate text-right text-[15px] font-medium text-label">
+      <span className="min-w-0 break-words text-right text-[15px] font-medium text-label">
         {value}
       </span>
     </div>
@@ -110,6 +111,23 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
       backHref="/orders"
       actions={<Badge tone={statusTone(order.tone)}>{order.status}</Badge>}
     >
+      {order.reviewedDetailsAvailable ? (
+        <BookingDecisionControls
+          bookingId={order.orderId}
+          initialStatus={order.status}
+        />
+      ) : (
+        <div className="mb-6 rounded-group bg-orange-soft px-4 py-3 text-[14px] font-medium text-orange-ink">
+          Booking decisions are unavailable because the persisted reviewed details are incomplete.
+        </div>
+      )}
+
+      {order.budgetBelowMinimum ? (
+        <div className="mb-6 flex items-center gap-2.5 rounded-group bg-orange-soft px-4 py-3 text-[14px] font-medium text-orange-ink">
+          This booking&apos;s budget is below the cleaner&apos;s minimum.
+        </div>
+      ) : null}
+
       {/* Hero summary */}
       <Card className="mb-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -117,7 +135,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             <p className="text-[13px] font-semibold uppercase tracking-[0.05em] text-secondary">
               {order.service}
             </p>
-            <h2 className="mt-1 truncate text-[26px] font-semibold tracking-tight text-label">
+            <h2 className="mt-1 break-words text-[26px] font-semibold tracking-tight text-label">
               {order.customerName}
             </h2>
             <p className="mt-1 flex items-center gap-1.5 text-[15px] text-secondary">
@@ -145,6 +163,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
           />
           <InfoRow label="Location" value={order.location} />
           <InfoRow label="Price" value={order.price} />
+          <InfoRow label="Budget" value={order.budget} />
           <InfoRow label="Estimated hours" value={order.estimatedHours} />
           <InfoRow label="Status" value={order.status} />
         </InsetGroup>
@@ -157,7 +176,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
         </InsetGroup>
       </div>
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+      <div className="mt-5 grid gap-5 lg:grid-cols-3">
         <TextCard
           icon={<MessageIcon className="h-5 w-5" />}
           title="Call summary"
@@ -167,6 +186,11 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
           icon={<ClockIcon className="h-5 w-5" />}
           title="Cleaner briefing"
           body={order.cleanerBriefing}
+        />
+        <TextCard
+          icon={<MessageIcon className="h-5 w-5" />}
+          title="Client notes"
+          body={order.clientNotes}
         />
       </div>
 

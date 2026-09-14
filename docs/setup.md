@@ -27,6 +27,7 @@ Next.js loads each application's `.env.local`; the agent loads `.env.local` rela
 | Agent | `ELEVENLABS_VOICE_ID` | Optional approved voice identifier |
 | Dashboard | `PB_ADMIN_EMAIL`, `PB_ADMIN_PASSWORD` | Optional legacy server-only superuser fallback; unnecessary for properly configured cleaner-user rules |
 | Dashboard | `POCKETBASE_ADMIN_EMAIL`, `POCKETBASE_ADMIN_PASSWORD` | Legacy aliases for the preceding values; prefer the `PB_ADMIN_*` names |
+| Backend server | `CLEANVOICE_CLEANER_ID` | Seeded active synthetic cleaner record ID; required for new submissions and suggestions |
 | Backend setup | `CLEANVOICE_DEMO_PASSWORD` | Password you supply for the synthetic `cleaner@example.test` login; never committed or printed |
 | Backend setup | `PB_ADMIN_EMAIL`, `PB_ADMIN_PASSWORD` | Local PocketBase superuser for creating the schema |
 | Agent tests | `RUN_LIVEKIT_EVALS` | Set to `1` only to intentionally run paid/network model evaluations with your credentials |
@@ -48,16 +49,18 @@ Open `http://127.0.0.1:3000` for the caller or `http://127.0.0.1:3001/login` for
 
 Download [PocketBase 0.39.4](https://github.com/pocketbase/pocketbase/releases/tag/v0.39.4) for your OS from the official release, extract its executable to `pocketbase/pocketbase`, and retain its bundled license locally. The binary and database are ignored by Git. The schema setup was tested against exactly this version.
 
-Use a **new disposable data directory**, not an existing cleaner/client database. The setup skips existing collections without reconciling fields or access rules. If a previous setup is incomplete, use a new disposable directory.
+Use a **new disposable data directory** for initial setup and testing. Setup now reconciles fields, indexes and access rules on existing collections without deleting records. For an upgrade, stop callers and use a disposable copy first; a failed schema step leaves affected access rules locked until setup completes successfully. Generated local migrations are not the upgrade authority: rerun `setup_pb.py`.
 
-In a shell, set `PB_ADMIN_EMAIL`, `PB_ADMIN_PASSWORD`, and `CLEANVOICE_DEMO_PASSWORD` locally. Use `admin@example.test` for the admin email and distinct generated passwords. Do not commit these values. Create the local superuser, then start the server:
+In a shell, create disposable data and migration directories with `mktemp -d`, saving their paths as `YOSHIDA_DATA_DIR` and `YOSHIDA_MIGRATIONS_DIR`. Set `PB_ADMIN_EMAIL`, `PB_ADMIN_PASSWORD`, and `CLEANVOICE_DEMO_PASSWORD` locally. Use `admin@example.test` for the admin email and distinct generated passwords. Do not commit these values. Create the local superuser, then start the server:
 
 ```sh
+YOSHIDA_DATA_DIR=$(mktemp -d)
+YOSHIDA_MIGRATIONS_DIR=$(mktemp -d)
 ./pocketbase/pocketbase superuser create "$PB_ADMIN_EMAIL" "$PB_ADMIN_PASSWORD" \
-  --dir ./pocketbase/pb_data --migrationsDir ./pocketbase/pb_migrations
+  --dir "$YOSHIDA_DATA_DIR" --migrationsDir "$YOSHIDA_MIGRATIONS_DIR"
 ./pocketbase/pocketbase serve --http 127.0.0.1:8090 \
-  --dir ./pocketbase/pb_data --hooksDir ./pocketbase/pb_hooks \
-  --migrationsDir ./pocketbase/pb_migrations
+  --dir "$YOSHIDA_DATA_DIR" --hooksDir ./pocketbase/pb_hooks \
+  --migrationsDir "$YOSHIDA_MIGRATIONS_DIR"
 ```
 
 In a second shell with the same three environment variables:
@@ -66,9 +69,15 @@ In a second shell with the same three environment variables:
 python3 pocketbase/setup_pb.py
 ```
 
-This creates seven base collections, uses PocketBase's built-in `users` auth collection, and seeds one synthetic cleaner (`cleaner@example.test`, lookup phone `+12025550101`). Sign in to the dashboard using `CLEANVOICE_DEMO_PASSWORD`. New caller requests use `+12025550102`; no real phone calls are placed to these identifiers.
+This creates eight base collections, uses PocketBase's built-in `users` auth collection, and seeds one synthetic cleaner (`cleaner@example.test`, lookup phone `+12025550101`). Sign in to the dashboard using `CLEANVOICE_DEMO_PASSWORD`. New caller requests use `+12025550102`; no real phone calls are placed to these identifiers.
 
-The custom routes are unauthenticated and every authenticated user can access all base collections. Keep the server on loopback. Matching picks the first cleaner and does not validate full availability or service/location fit. See [backend contract](backend-contract.md) for these prototype boundaries.
+Setup prints the seeded cleaner ID. Export `CLEANVOICE_CLEANER_ID` with that value and restart the same PocketBase server with the same data/migration directories. Creation refuses missing or inactive configuration rather than selecting another cleaner. Collection reads are owner-scoped and booking mutations use the transactional routes. Caller lookup/briefing routes still require loopback-only operation with synthetic data; full availability or service/location fit is not guaranteed. See [backend contract](backend-contract.md).
+
+Run the repeatable HTTP contract suite without configuring credentials or an existing server:
+
+```sh
+python3 -m unittest discover -s pocketbase/tests -p 'test_booking_http.py' -v
+```
 
 ## Optional live voice demo
 
@@ -84,6 +93,6 @@ uv run --frozen src/agent.py download-files
 uv run --frozen src/agent.py dev
 ```
 
-Use `dev` so the named worker registers for browser dispatch. `console` is a separate local conversation mode and does not verify the browser flow. Choose only synthetic customer details and a permission-cleared voice. Click the caller's call control, speak a German cleaning request, then verify the resulting tentative booking under the correct cleaner account. Verify the realtime event and a manual reload separately, and remember that this demo schema does not isolate one cleaner from another.
+Use `dev` so the named worker registers for browser dispatch. `console` is a separate local conversation mode and does not verify the browser flow. Choose only synthetic customer details and a permission-cleared voice. Click the caller's call control, speak a German cleaning request, then verify the resulting tentative booking under the correct cleaner account. Verify the realtime event and a manual reload separately, and verify that a second synthetic cleaner cannot read or decide the first cleaner's requests.
 
 Stop the local processes after the demo. Do not deploy the token routes or custom backend publicly until authentication, rate limits, room isolation, access controls, and retention behavior have been implemented and tested.

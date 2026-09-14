@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Reconstruct the CleanVoice PocketBase schema (no booking/client content).
-
-Creates the 7 base collections the dashboard reads/writes, wires relations,
-opens API rules to authenticated users, and seeds exactly one login
-(users record + linked cleaners profile) so the dashboard is usable.
-"""
+"""Create or upgrade the synthetic booking schema without deleting existing data."""
 import json
 import os
 import sys
@@ -55,9 +50,27 @@ def json_field(name):
     return {"name": name, "type": "json", "maxSize": 2000000}
 
 
-def rules():
-    return {"listRule": AUTHED, "viewRule": AUTHED, "createRule": AUTHED,
-            "updateRule": AUTHED, "deleteRule": AUTHED}
+def rules(name):
+    # Mutation authority lives in the transactional booking routes. Related intake
+    # records cannot be edited directly to change an already reviewed request.
+    owner = {
+        "cleaners": 'user = @request.auth.id',
+        "cleaner_preferences": 'cleaner.user = @request.auth.id',
+        "bookings": 'cleaner.user = @request.auth.id',
+        "booking_notes": 'booking.cleaner.user = @request.auth.id',
+        "clients": 'bookings_via_client.cleaner.user ?= @request.auth.id',
+        "addresses": 'bookings_via_address.cleaner.user ?= @request.auth.id',
+        "client_preferences": 'client.bookings_via_client.cleaner.user ?= @request.auth.id',
+    }.get(name)
+    read = f'{AUTHED} && ({owner})' if owner else None
+    result = {"listRule": read, "viewRule": read, "createRule": None,
+              "updateRule": None, "deleteRule": None}
+    if name == "cleaners":
+        result["updateRule"] = read + ' && @request.body.user:changed = false'
+    if name == "cleaner_preferences":
+        result["createRule"] = read
+        result["updateRule"] = read + ' && @request.body.cleaner:changed = false'
+    return result
 
 
 def get_collection_id(token, name):
@@ -65,18 +78,25 @@ def get_collection_id(token, name):
     return data.get("id") if status == 200 else None
 
 
-def create_collection(token, name, fields):
-    existing = get_collection_id(token, name)
-    if existing:
-        print(f"  = {name} already exists ({existing})")
-        return existing
-    payload = {"name": name, "type": "base", "fields": fields, **rules()}
-    status, data = req("POST", "/api/collections", token, payload)
+def create_collection(token, name, fields, indexes=None):
+    status, existing = req("GET", f"/api/collections/{name}", token)
+    payload = {"name": name, "type": "base", "fields": fields, **{key: None for key in rules(name)}}
+    if status == 200:
+        # Keep field IDs, unknown extension fields, records and existing indexes.
+        by_name = {field["name"]: field for field in existing["fields"]}
+        for field in fields:
+            by_name[field["name"]] = {**by_name.get(field["name"], {}), **field}
+        payload["fields"] = list(by_name.values())
+        payload["indexes"] = list(dict.fromkeys(existing.get("indexes", []) + (indexes or [])))
+        status, data = req("PATCH", f"/api/collections/{name}", token, payload)
+    elif status == 404:
+        payload["indexes"] = indexes or []
+        status, data = req("POST", "/api/collections", token, payload)
+    else:
+        raise RuntimeError(f"Cannot inspect collection {name}: HTTP {status}")
     if status not in (200, 201):
-        print(f"  ! FAILED to create {name}: {status}")
-        print(json.dumps(data, indent=2))
-        sys.exit(1)
-    print(f"  + {name} ({data['id']})")
+        raise RuntimeError(f"Cannot apply schema for {name}: HTTP {status}: {json.dumps(data)}")
+    print(f"  = {name} schema current ({data['id']})")
     return data["id"]
 
 
@@ -118,13 +138,23 @@ def main():
         relation("client", clients), relation("address", addresses),
         relation("cleaner", cleaners),
         {"name": "start_time", "type": "date"}, {"name": "end_time", "type": "date"},
-        text("status"), text("service_type"),
+        text("status"), text("service_type"), text("timezone"),
+        {"name": "budget_known", "type": "bool"},
+        {"name": "price_known", "type": "bool"},
+        {"name": "budget_below_minimum", "type": "bool"},
+        json_field("request_snapshot"),
         {"name": "estimated_hours", "type": "number"},
         text("customer_summary", max=4000), text("cleaner_briefing", max=4000),
         {"name": "calendar_sent", "type": "bool"}, text("source"),
         {"name": "price", "type": "number"}, {"name": "budget", "type": "number"},
         *autodates(),
     ])
+    create_collection(token, "booking_submissions", [
+        text("submission_id", required=True), text("payload_hash", required=True),
+        text("recovery_hash", hidden=True), relation("booking", bookings, required=True),
+        relation("cleaner", cleaners, required=True), json_field("receipt"),
+        *autodates(),
+    ], ['CREATE UNIQUE INDEX idx_submission_identity ON booking_submissions (submission_id)'])
     create_collection(token, "booking_notes", [
         relation("booking", bookings),
         text("type"), text("note", max=2000), text("note_translated", max=2000), text("importance"),
@@ -146,6 +176,14 @@ def main():
         text("business_rules", max=4000), json_field("exceptions"),
         *autodates(),
     ])
+
+    # Apply relation-dependent rules only after every collection exists. A failed
+    # first pass leaves affected collections locked, never broadly writable.
+    for name in ["cleaners", "clients", "addresses", "bookings", "booking_submissions",
+                 "booking_notes", "client_preferences", "cleaner_preferences"]:
+        status, result = req("PATCH", f"/api/collections/{name}", token, rules(name))
+        if status != 200:
+            raise RuntimeError(f"Cannot apply access rules for {name}: {result}")
 
     print("seeding demo login (1 user + 1 cleaner)...")
     status, data = req("GET", f'/api/collections/users/records?filter=(email="{DEMO_EMAIL}")', token)

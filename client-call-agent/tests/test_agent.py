@@ -633,7 +633,7 @@ async def test_pocketbase_create_booking_posts_payload_with_json_headers() -> No
 
     client = PocketBaseClient(base_url="https://example.test", session=FakeSession())
 
-    result = await client.create_booking(payload)
+    result = await client.create_booking(payload, "private-recovery-token")
 
     assert result == {"ok": True, "cleaner_briefing": "Hi Example Cleaner."}
     assert calls == [
@@ -643,12 +643,9 @@ async def test_pocketbase_create_booking_posts_payload_with_json_headers() -> No
             {
                 "ngrok-skip-browser-warning": "true",
                 "Content-Type": "application/json",
+                "X-Submission-Token": "private-recovery-token",
             },
-            {
-                **payload,
-                "cleaner": {"preferred_language": "en"},
-                "cleaner_language": "en",
-            },
+            payload,
         )
     ]
 

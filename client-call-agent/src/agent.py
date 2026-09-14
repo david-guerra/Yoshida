@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
+import aiohttp
 from dotenv import load_dotenv
 from livekit.agents import (
     Agent,
@@ -27,6 +28,8 @@ from livekit.agents import (
 )
 from livekit.agents.llm import ToolError
 from livekit.plugins import ai_coustics
+
+from submission import Submission, SubmissionRejectedError, SubmissionUnclearError
 
 logger = logging.getLogger("agent")
 
@@ -238,17 +241,39 @@ class PocketBaseClient:
         ) as response:
             return await self._json_or_tool_error(response, "suggest_cleaner")
 
-    async def create_booking(self, payload: dict[str, Any]) -> dict[str, Any]:
-        payload = await enrich_booking_payload_with_cleaner_language(payload, self)
-        async with self.session.post(
-            f"{self.base_url}/api/cleanvoice/create-booking",
-            headers={
-                "ngrok-skip-browser-warning": "true",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        ) as response:
-            return await self._json_or_tool_error(response, "create_booking")
+    async def create_booking(
+        self, payload: dict[str, Any], recovery_token: str = ""
+    ) -> dict[str, Any]:
+        try:
+            async with self.session.post(
+                f"{self.base_url}/api/cleanvoice/create-booking",
+                headers={
+                    "ngrok-skip-browser-warning": "true",
+                    "Content-Type": "application/json",
+                    "X-Submission-Token": recovery_token,
+                },
+                json=payload,
+            ) as response:
+                if response.status in (408, 409):
+                    raise SubmissionUnclearError(
+                        "Submission may already exist; reconcile the same reference."
+                    )
+                if 400 <= response.status < 500:
+                    raise SubmissionRejectedError(
+                        f"Request rejected (HTTP {response.status}); clarify the reviewed details."
+                    )
+                if response.status >= 500:
+                    raise SubmissionUnclearError(
+                        "Backend unavailable; the save outcome is unclear."
+                    )
+                data = await response.json()
+                if not isinstance(data, dict):
+                    raise SubmissionUnclearError("Backend returned no usable receipt.")
+                return data
+        except (aiohttp.ClientError, ValueError) as error:
+            raise SubmissionUnclearError(
+                "Save response was interrupted; reconcile this submission."
+            ) from error
 
 
 async def preload_call_context(
@@ -291,6 +316,7 @@ class Assistant(Agent):
         caller_phone: str | None = None,
         call_context: dict[str, Any] | None = None,
     ) -> None:
+        self._submission = Submission()
         super().__init__(
             # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
             # See all available models at https://docs.livekit.io/agents/models/llm/
@@ -388,7 +414,12 @@ class Assistant(Agent):
         if not isinstance(payload, dict):
             raise ToolError("create_booking requires a payload object.")
         await context.update("Ich speichere die Anfrage kurz für die Reinigungskraft.")
-        return await PocketBaseClient().create_booking(payload)
+        try:
+            return await self._submission.save(
+                payload, PocketBaseClient().create_booking
+            )
+        except (SubmissionRejectedError, SubmissionUnclearError) as error:
+            raise ToolError(str(error)) from None
 
 
 server = AgentServer()
