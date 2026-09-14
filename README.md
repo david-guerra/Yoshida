@@ -14,7 +14,7 @@ A hackathon voice AI prototype for independent cleaners facing a language barrie
 4. Its tools request cleaner preferences, suggest a match, and submit a tentative booking.
 5. The authenticated dashboard reads bookings and receives realtime refreshes from PocketBase; the cleaner reviews the result.
 
-The backend creates requests with `requested` status regardless of a caller-supplied status. Human confirmation is required outside this prototype; a confirmation action is not implemented in the dashboard. The local setup checks exercise booking tools and dashboard reads; they do not establish live speech quality, translation accuracy, or suitability for real customer data.
+The backend creates requests with `requested` status regardless of a caller-supplied status. The owning cleaner can Confirm or Decline a reviewed request in the dashboard; the decision is persisted through the authenticated booking API. The local setup checks exercise booking tools and dashboard reads; they do not establish live speech quality, translation accuracy, or suitability for real customer data.
 
 ## Architecture
 
@@ -75,9 +75,10 @@ uv run --frozen ruff check .
 uv run --frozen ruff format --check .
 cd ..
 node --test pocketbase/tests/*.test.mjs
+python3 -m unittest discover -s pocketbase/tests -p 'test_booking_http.py' -v
 ```
 
-The frontend tests mostly inspect source contracts. Agent tests cover prompt construction and HTTP tool boundaries with test doubles; three live model evaluations are opt-in. They do not establish end-to-end or production readiness. Dependency installation needs network access; frontend builds do not require provider credentials.
+The frontend tests mostly inspect source contracts. Agent tests cover prompt construction and HTTP tool boundaries with test doubles; three live model evaluations are opt-in. The booking HTTP suite requires the PocketBase 0.39.4 binary described in [setup](docs/setup.md#fresh-synthetic-backend) and starts its own disposable database. These checks do not establish end-to-end voice or production readiness. Dependency installation needs network access; frontend builds do not require provider credentials.
 
 For local UI startup, environment configuration, and the conditional live demo, follow [setup](docs/setup.md). The caller UI can render without credentials; placing a call requires a configured LiveKit project. The dashboard login renders without PocketBase; signing in and reading bookings require the local backend and synthetic account described in the setup guide.
 
@@ -93,8 +94,8 @@ The [media inventory](design/README.md) also records the historical design conce
 
 - Browser audio simulates a call; no checked-in SIP/PSTN telephone integration exists.
 - The caller uses a fixed room and participant identity. Its token and dispatch routes have no authentication or rate limiting. Run them on loopback for supervised demos; do not expose a credentialed caller publicly.
-- The custom PocketBase routes have no authentication or rate limits. The setup grants every authenticated user access to all base collections; tenant isolation is absent. Keep the backend on loopback with disposable synthetic data.
-- Cleaner matching is a demo stub that selects the first available record and only warns about a low budget; it does not implement full availability, location, or service matching. Booking writes are nontransactional and retries may duplicate records.
+- Caller lookup and briefing routes remain unauthenticated and custom routes have no rate limits. Booking decisions require the owning cleaner; collection reads are owner-filtered and direct booking writes are locked. Keep the backend on loopback with disposable synthetic data.
+- Requests route to the explicitly configured active cleaner and warn about a low budget; this does not establish availability, location, or service matching. Booking creation is transactional, and retries with the same submission identity and reviewed payload return the original tentative receipt.
 - Audio, text, and tool context can reach configured inference providers. Retention, recording consent, deletion, and approved voice use have not been established for real callers.
 - Translations need native-speaker review, especially Polish, Ukrainian, and Arabic. There is no production matching or availability guarantee. The prototype has no production reliability or security assurance.
 

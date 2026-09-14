@@ -3,7 +3,9 @@ type PocketBaseRequestOptions = {
   body?: unknown;
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   params?: URLSearchParams;
+  signal?: AbortSignal;
   token?: string | null;
+  fetchImplementation?: typeof fetch;
 };
 
 const POCKETBASE_URL =
@@ -89,6 +91,22 @@ export async function pocketBaseRequest<T>(
   path: string,
   options: PocketBaseRequestOptions = {},
 ) {
+  const res = await pocketBaseResponse(path, options);
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(
+      `PocketBase ${options.method ?? "GET"} ${path} failed with ${res.status}: ${body}`,
+    );
+  }
+
+  return (await res.json()) as T;
+}
+
+export async function pocketBaseResponse(
+  path: string,
+  options: PocketBaseRequestOptions = {},
+) {
   const auth = options.auth ?? "optional";
   const token =
     options.token ??
@@ -105,19 +123,12 @@ export async function pocketBaseRequest<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(buildPocketBaseUrl(path, options.params), {
+  const fetchImplementation = options.fetchImplementation ?? fetch;
+  return fetchImplementation(buildPocketBaseUrl(path, options.params), {
     method: options.method ?? "GET",
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     cache: "no-store",
+    signal: options.signal,
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(
-      `PocketBase ${options.method ?? "GET"} ${path} failed with ${res.status}: ${body}`,
-    );
-  }
-
-  return (await res.json()) as T;
 }

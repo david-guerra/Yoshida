@@ -60,7 +60,7 @@ async def test_language_lookup_failure_does_not_log_personal_context(caplog):
 
 @pytest.mark.asyncio
 async def test_failed_booking_does_not_send_raw_backend_body_to_model():
-    from livekit.agents.llm import ToolError
+    from submission import SubmissionUnclearError
 
     class FailedResponse:
         status = 500
@@ -78,8 +78,8 @@ async def test_failed_booking_does_not_send_raw_backend_body_to_model():
         def post(self, *args, **kwargs):
             return FailedResponse()
 
-    with pytest.raises(ToolError) as raised:
+    with pytest.raises(SubmissionUnclearError) as raised:
         await PocketBaseClient(session=BackendSession()).create_booking({})
-    assert "500" in str(raised.value)
+    assert "unclear" in str(raised.value)
     assert "private-response-marker" not in str(raised.value)
     assert "example.test" not in str(raised.value)
