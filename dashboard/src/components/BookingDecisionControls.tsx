@@ -17,11 +17,17 @@ function normalizedStatus(status: string) {
 export default function BookingDecisionControls({
   bookingId,
   initialStatus,
+  reviewComplete = true, canConfirm = true, canDecline = true, onRefresh,
 }: {
   bookingId: string;
   initialStatus: string;
+  reviewComplete?: boolean;
+  canConfirm?: boolean;
+  canDecline?: boolean;
+  onRefresh?: () => void;
 }) {
   const router = useRouter();
+  const refresh = onRefresh ?? (() => router.refresh());
   const propStatus = normalizedStatus(initialStatus);
   const [authoritativeResult, setAuthoritativeResult] = useState<{
     basedOn: string;
@@ -39,6 +45,7 @@ export default function BookingDecisionControls({
   const decided = status === "confirmed" || status === "declined";
 
   const decide = async (decision: BookingDecision) => {
+    if (!reviewComplete || (decision === "confirmed" ? !canConfirm : !canDecline)) return;
     if (!canAttemptDecision(status, uncertainDecision, decision)) return;
 
     setPending(decision);
@@ -53,7 +60,7 @@ export default function BookingDecisionControls({
       });
       setUncertainDecision(null);
       setMessage(`Booking ${result.booking_status}.`);
-      router.refresh();
+      refresh();
     } catch (caught) {
       const actualStatus = authoritativeConflictStatus(caught, bookingId);
       if (actualStatus) {
@@ -72,7 +79,7 @@ export default function BookingDecisionControls({
         );
       }
       setFailed(true);
-      router.refresh();
+      refresh();
     } finally {
       setPending(null);
     }
@@ -94,7 +101,7 @@ export default function BookingDecisionControls({
             <button
               className={buttonClass("plain", "md")}
               disabled={pending !== null}
-              onClick={() => router.refresh()}
+              onClick={refresh}
               type="button"
             >
               Refresh status
@@ -103,7 +110,7 @@ export default function BookingDecisionControls({
           <button
             className={buttonClass("gray", "md")}
             disabled={
-              pending !== null ||
+              pending !== null || !reviewComplete || !canDecline ||
               !canAttemptDecision(status, uncertainDecision, "declined")
             }
             onClick={() => void decide("declined")}
@@ -118,7 +125,7 @@ export default function BookingDecisionControls({
           <button
             className={buttonClass("filled", "md")}
             disabled={
-              pending !== null ||
+              pending !== null || !reviewComplete || !canConfirm ||
               !canAttemptDecision(status, uncertainDecision, "confirmed")
             }
             onClick={() => void decide("confirmed")}

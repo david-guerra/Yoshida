@@ -1,133 +1,42 @@
 "use client";
 
-import { useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { Calendar, dateFnsLocalizer } from "react-big-calendar";
-import "react-big-calendar/lib/css/react-big-calendar.css";
-import { format, parse, startOfWeek, getDay } from "date-fns";
-import { enUS } from "date-fns/locale/en-US";
-import type { EventProps, HeaderProps } from "react-big-calendar";
-import Badge, { statusTone } from "@/src/components/ui/Badge";
-import { InsetGroup, ListRow } from "@/src/components/ui/Card";
-import type { OrderRecord } from "@/src/lib/orders";
+import { useState } from "react";
+import { useBookingRead, type BookingSession } from "@/src/lib/useBookingRead";
+import { berlinDay, berlinMidnight, calendarWeek, shiftDay, weekDays } from "@/src/lib/bookingCalendar";
+import { formatAppointment, formatDate } from "@/src/lib/orders";
+import BookingReadStatus from "./BookingReadStatus";
+import Badge, { statusTone } from "./ui/Badge";
+import { InsetGroup, ListRow } from "./ui/Card";
+import { buttonClass } from "./ui/Button";
 
-const locales = { "en-US": enUS };
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-});
-
-const dayLabels = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-
-function WeekHeader({ date }: HeaderProps) {
-  const isToday =
-    format(date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
-
-  return (
-    <div className="cleanvoice-week-header">
-      <span className={isToday ? "text-accent" : ""}>
-        {dayLabels[date.getDay()]}
-      </span>
-      <strong className={isToday ? "cleanvoice-week-date-active" : ""}>
-        {format(date, "d")}
-      </strong>
-    </div>
-  );
-}
-
-function BookingEvent({ event }: EventProps<OrderRecord>) {
-  return (
-    <div>
-      <strong>{event.customerName}</strong>
-      <span>{event.service}</span>
-    </div>
-  );
-}
-
-function MobileBookingList({ orders }: { orders: OrderRecord[] }) {
-  const upcomingOrders = orders.filter((order) => order.category === "upcoming");
-
-  if (!upcomingOrders.length) {
-    return (
-      <div className="overflow-hidden rounded-group bg-surface px-4 py-8 text-center text-[14px] text-secondary shadow-card">
-        No upcoming bookings are scheduled yet.
-      </div>
-    );
-  }
-
-  return (
-    <InsetGroup header="Upcoming" count={upcomingOrders.length}>
-      {upcomingOrders.map((order) => (
-        <ListRow
-          key={order.orderId}
-          href={`/orders/${order.orderId}`}
-          title={order.customerName}
-          subtitle={`${format(order.start, "EEE, d MMM")} · ${format(
-            order.start,
-            "HH:mm",
-          )}`}
-          detail={`${order.service} · ${order.location}`}
-          trailing={<Badge tone={statusTone(order.tone)}>{order.status}</Badge>}
-        />
-      ))}
-    </InsetGroup>
-  );
-}
-
-export default function CalendarCard({ orders }: { orders: OrderRecord[] }) {
-  const router = useRouter();
-  const calendarDate = useMemo(() => {
-    const nextOrder = orders.find((order) => order.category === "upcoming");
-    return nextOrder?.start ?? new Date();
-  }, [orders]);
-  const minTime = useMemo(() => {
-    const value = new Date(calendarDate);
-    value.setHours(8, 0, 0, 0);
-    return value;
-  }, [calendarDate]);
-  const maxTime = useMemo(() => {
-    const value = new Date(calendarDate);
-    value.setHours(18, 0, 0, 0);
-    return value;
-  }, [calendarDate]);
-
-  return (
-    <>
-      <div className="md:hidden">
-        <MobileBookingList orders={orders} />
-      </div>
-
-      <div className="hidden md:block">
-        <div className="h-[min(720px,calc(100vh-180px))] min-h-[520px] overflow-hidden rounded-card bg-surface shadow-card">
-          <Calendar<OrderRecord>
-            className="cleanvoice-calendar"
-            components={{
-              event: BookingEvent,
-              week: {
-                header: WeekHeader,
-              },
-            }}
-            date={calendarDate}
-            localizer={localizer}
-            events={orders}
-            onSelectEvent={(event) => router.push(`/orders/${event.orderId}`)}
-            startAccessor="start"
-            endAccessor="end"
-            titleAccessor={(event) => event.customerName}
-            defaultView="week"
-            max={maxTime}
-            min={minTime}
-            step={30}
-            timeslots={2}
-            toolbar={false}
-            views={["week"]}
-            style={{ height: "100%" }}
-          />
-        </div>
-      </div>
-    </>
-  );
+export default function CalendarCard(session: BookingSession) {
+  const [day, setDay] = useState(() => berlinDay(new Date()));
+  const state = useBookingRead(session, {kind:"calendar", ...calendarWeek(day)});
+  const orders = (state.data?.orders ?? []).filter(order => order.calendarEligible)
+    .sort((a,b) => a.start!.getTime()-b.start!.getTime() || a.orderId.localeCompare(b.orderId));
+  return <>
+    <BookingReadStatus state={state} />
+    <nav aria-label="Calendar weeks" className="mb-4 flex flex-wrap items-center gap-4">
+      <button className={buttonClass("gray","sm")} type="button" onClick={() => setDay(shiftDay(day,-7))}>Previous week</button>
+      <label className="flex items-center gap-2">Week containing
+        <input aria-label="Week containing" className="rounded-control bg-surface p-2" type="date" value={day}
+          onChange={event => {if (/^\d{4}-\d{2}-\d{2}$/.test(event.target.value)) setDay(event.target.value);}} />
+      </label>
+      <button className={buttonClass("gray","sm")} type="button" onClick={() => setDay(shiftDay(day,7))}>Next week</button>
+    </nav>
+    <p className="mb-4 text-secondary">Europe/Berlin · Requested appointments are tentative; confirmed appointments are approved.</p>
+    {state.data ? <div className="grid gap-4 md:grid-cols-2">
+      {weekDays(day).map(date => {
+        const from = Date.parse(berlinMidnight(date));
+        const to = Date.parse(berlinMidnight(shiftDay(date,1)));
+        const matches = orders.filter(order => order.start!.getTime() < to && order.end!.getTime() > from);
+        return <InsetGroup key={date} header={formatDate(new Date(date+"T12:00:00Z"))} count={matches.length}>
+          {matches.length ? matches.map(order => <ListRow key={order.orderId} href={`/orders/${order.orderId}`}
+            title={order.customerName} subtitle={formatAppointment(order)} detail={`${order.service} · ${order.location}`}
+            trailing={<Badge tone={statusTone(order.tone)}>{order.status}</Badge>} />)
+            : <p className="p-4 text-secondary">No bookings on this day.</p>}
+        </InsetGroup>;
+      })}
+    </div> : null}
+  </>;
 }

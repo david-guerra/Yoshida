@@ -76,8 +76,12 @@ Setup prints the seeded cleaner ID. Export `CLEANVOICE_CLEANER_ID` with that val
 Run the repeatable HTTP contract suite without configuring credentials or an existing server:
 
 ```sh
-python3 -m unittest discover -s pocketbase/tests -p 'test_booking_http.py' -v
+python3 -m unittest discover -s pocketbase/tests -p 'test_booking*http.py' -v
 ```
+
+Home, Orders, Calendar, and booking details share authenticated reads. Orders shows 30 records per page; Home and Calendar fetch their complete matching sets. Failed refreshes retain the last successful data with an “Updates paused” label and Retry; an initial failure shows an error. “Live” requires an accepted event subscription and a successful read. Signing out or losing authorization clears private data. Partial detail failures retain readable sections and disable decisions until review is complete.
+
+For repeatable pagination and recovery checks, `python3 pocketbase/tests/serve_read_demo.py` starts a disposable backend with 32 bookings, 31 notes, and 31 preferences, plus a loopback fault proxy. Point both dashboard PocketBase origins at the printed proxy URL. The [verification record](booking-read-verification.md) describes the commands, observed behavior, and remaining delivery boundaries.
 
 ## Optional live voice demo
 

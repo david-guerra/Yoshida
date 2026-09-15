@@ -4,11 +4,10 @@ import CalendarCard from "@/src/components/CalendarCard";
 import { buttonClass } from "@/src/components/ui/Button";
 import { PlusIcon } from "@/src/components/ui/icons";
 import { requireCleanerSession } from "@/src/lib/auth";
-import { getOrders } from "@/src/lib/orders";
+import { getPublicPocketBaseUrl } from "@/src/lib/pocketbase";
 
 export default async function CalendarPage() {
   const session = await requireCleanerSession();
-  const orders = await getOrders(session.cleanerId, session.token);
 
   return (
     <AppShell
@@ -21,7 +20,7 @@ export default async function CalendarPage() {
         </Link>
       }
     >
-      <CalendarCard orders={orders} />
+      <CalendarCard {...session} pocketBaseUrl={getPublicPocketBaseUrl()} />
     </AppShell>
   );
 }

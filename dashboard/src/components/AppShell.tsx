@@ -1,11 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { logoutAction } from "@/src/app/login/actions";
+import LogoutForm from "./LogoutForm";
+import SessionNotice from "./SessionNotice";
 import { requireCleanerSession } from "@/src/lib/auth";
-import {
-  getCleanerSettings,
-  languageLabels,
-} from "@/src/lib/cleanerPreferences";
 import {
   CalendarIcon,
   ChevronLeft,
@@ -87,7 +84,7 @@ function ProfileFooter({ profile }: { profile: ShellProfile }) {
         </span>
         <ChevronRight className="h-4 w-4 shrink-0 text-tertiary" />
       </Link>
-      <form action={logoutAction}>
+      <LogoutForm>
         <button
           type="submit"
           className="mt-0.5 flex w-full items-center gap-3 rounded-control px-2 py-2 text-[14px] font-medium text-secondary transition hover:bg-fill-2 hover:text-label"
@@ -97,7 +94,7 @@ function ProfileFooter({ profile }: { profile: ShellProfile }) {
           </span>
           Log out
         </button>
-      </form>
+      </LogoutForm>
     </div>
   );
 }
@@ -240,16 +237,7 @@ export default async function AppShell({
   children: ReactNode;
 }) {
   const session = await requireCleanerSession();
-  const { cleaner, preferences } = await getCleanerSettings(
-    session.cleanerId,
-    session.token,
-  );
-  const name = cleaner.name || session.cleanerName || "Cleaner";
-  const language =
-    languageLabels[cleaner.preferred_language] ?? cleaner.preferred_language;
-  const locations = preferences.service_locations?.length
-    ? preferences.service_locations.slice(0, 2).join(", ")
-    : "Service areas";
+  const name = session.cleanerName || "Cleaner";
 
   return (
     <AppFrame
@@ -261,9 +249,10 @@ export default async function AppShell({
       profile={{
         name,
         initials: getInitials(name),
-        meta: `${locations} · ${language}`,
+        meta: session.cleanerEmail,
       }}
     >
+      <SessionNotice token={session.token} cleanerId={session.cleanerId} />
       {children}
     </AppFrame>
   );
