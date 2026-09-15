@@ -1,151 +1,171 @@
-import {
-  formatAppointment,
-  formatDate,
-  formatTime,
-  mapBooking,
-  type OrderRecord,
-  type PocketBaseBooking,
-} from "@/src/lib/orderMapper";
-import { pocketBaseRequest } from "@/src/lib/pocketbase";
+import { mapBooking, type OrderRecord, type PocketBaseBooking } from "./orderMapper.ts";
+export type { OrderRecord } from "./orderMapper.ts";
+export { formatAppointment, formatDate, formatTime } from "./orderMapper.ts";
 
-export type { OrderRecord } from "@/src/lib/orderMapper";
-export { formatAppointment, formatDate, formatTime };
+export type ReadFailure = "unavailable" | "auth" | "setup" | "not-found";
+export class BookingReadError extends Error {
+  kind: ReadFailure;
+  constructor(kind: ReadFailure) {
+    super({
+      unavailable: "Could not load bookings. Retry.",
+      auth: "Your session has changed or expired. Sign in again.",
+      setup: "Account setup required: no linked cleaner profile.",
+      "not-found": "Booking not found or unavailable to your account.",
+    }[kind]);
+    this.kind = kind;
+  }
+}
 
-export type OrderNote = {
-  id: string;
-  type: string;
-  note: string;
-  importance: string;
-  readToCleaner: boolean;
-};
-
-export type ClientPreference = {
-  id: string;
-  type: string;
-  note: string;
-  importance: string;
-  isPersistent: boolean;
-};
-
+export type OrderNote = { id: string; type: string; note: string; importance: string };
 export type OrderDetail = {
   order: OrderRecord;
   notes: OrderNote[];
-  preferences: ClientPreference[];
+  preferences: OrderNote[];
+  failedSections: string[];
 };
+export type OrderQuery =
+  | { kind: "home" }
+  | { kind: "orders"; page: number; view?: string }
+  | { kind: "calendar"; from: string; to: string };
+export type OrderList = { orders: OrderRecord[]; total: number; page: number; totalPages: number };
+type Page<T> = { items: T[]; totalPages: number; totalItems: number; page: number };
+type Note = { id: string; type?: string; note?: string; note_translated?: string; importance?: string };
 
-type PocketBaseList<T> = {
-  items?: T[];
-};
-
-type PocketBaseNote = {
-  id: string;
-  type?: string;
-  note?: string;
-  note_translated?: string;
-  importance?: string;
-  read_to_cleaner?: boolean;
-};
-
-type PocketBasePreference = {
-  id: string;
-  type?: string;
-  note?: string;
-  note_translated?: string;
-  importance?: string;
-  is_persistent?: boolean;
-};
-
-export async function getOrders(cleanerId: string, token?: string) {
-  const params = new URLSearchParams({
-    filter: `cleaner = "${cleanerId}"`,
-    sort: "start_time",
-    expand: "client,address,cleaner",
-  });
-
-  try {
-    const data = await pocketBaseRequest<PocketBaseList<PocketBaseBooking>>(
-      "/api/collections/bookings/records",
-      { auth: token ? "none" : "optional", params, token },
-    );
-
-    return (data.items ?? []).map(mapBooking);
-  } catch (error) {
-    // PocketBase unreachable/misconfigured: render an empty dashboard rather
-    // than crashing the route. The realtime sync indicator surfaces the outage.
-    console.warn(
-      `[dashboard] Could not load bookings from PocketBase: ${
-        (error as Error).message.split("\n")[0]
-      }`,
-    );
-    return [];
+export async function readJson<T>(
+  url: string | URL, init: RequestInit = {}, transport: typeof fetch = fetch,
+): Promise<T> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    init.signal?.throwIfAborted();
+    const timeout = AbortSignal.timeout(10_000);
+    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    try {
+      const response = await transport(url, { ...init, signal, cache: "no-store" });
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) throw new BookingReadError("auth");
+        if (response.status === 404) throw new BookingReadError("not-found");
+        throw new BookingReadError("unavailable");
+      }
+      return await response.json() as T;
+    } catch (error) {
+      init.signal?.throwIfAborted();
+      if (error instanceof BookingReadError && error.kind !== "unavailable") throw error;
+      if (attempt === 1) throw new BookingReadError("unavailable");
+    }
   }
+  throw new BookingReadError("unavailable");
 }
 
-async function getBookingNotes(orderId: string, token?: string) {
-  const params = new URLSearchParams({
-    filter: `booking = "${orderId}"`,
-    sort: "-importance",
+// No privileged fallback. The caller supplies the current cleaner's session;
+// PocketBase rules remain authoritative even for a forged cleaner identifier.
+export function createBookingReader(options: {
+  baseUrl: string; token: string; cleanerId: string; signal?: AbortSignal; fetch?: typeof fetch;
+}) {
+  const { baseUrl, token, cleanerId, signal } = options;
+  const quote = (value: string) => JSON.stringify(value);
+  const request = <T,>(path: string, params?: Record<string, string>, method = "GET") => {
+    const url = new URL(path, baseUrl);
+    url.search = new URLSearchParams(params).toString();
+    if (!token) return Promise.reject<T>(new BookingReadError("auth"));
+    return readJson<T>(url, { method, signal, headers: {
+      Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true",
+    } }, options.fetch);
+  };
+  const page = async <T,>(collection: string, params: Record<string, string>, number = 1) => {
+    const result = await request<Page<T>>(`/api/collections/${collection}/records`, {
+      ...params, page: String(number), perPage: "30",
+    });
+    if (!Array.isArray(result.items) || result.page !== number ||
+        !Number.isInteger(result.totalPages) || !Number.isInteger(result.totalItems)) {
+      throw new BookingReadError("unavailable");
+    }
+    return result;
+  };
+  const collectPages = async <T extends {id:string},>(collection: string, params: Record<string, string>) => {
+    const items: T[] = [];
+    try {
+      const first = await page<T>(collection, params);
+      items.push(...first.items);
+      for (let next = 2; next <= first.totalPages; next++) {
+        const result = await page<T>(collection, params, next);
+        if (result.totalItems !== first.totalItems || result.totalPages !== first.totalPages) {
+          throw new BookingReadError("unavailable");
+        }
+        items.push(...result.items);
+      }
+      if (items.length !== first.totalItems || new Set(items.map(item => item.id)).size !== items.length) {
+        throw new BookingReadError("unavailable");
+      }
+      return { items };
+    } catch (error) {
+      return { items, error };
+    }
+  };
+  const all = async <T extends {id:string},>(collection: string, params: Record<string, string>) => {
+    const result = await collectPages<T>(collection, params);
+    if (result.error) throw result.error;
+    return result.items;
+  };
+  const identify = async () => {
+    // Invalid auth can otherwise produce a filtered empty PocketBase collection.
+    try {
+      await request("/api/collections/users/auth-refresh", undefined, "POST");
+    } catch (error) {
+      if (error instanceof BookingReadError && error.kind === "not-found") throw new BookingReadError("auth");
+      throw error;
+    }
+    const profiles = await all<{id:string}>("cleaners", { sort: "id" });
+    if (!profiles.length) throw new BookingReadError("setup");
+    if (!profiles.some(profile => profile.id === cleanerId)) throw new BookingReadError("auth");
+  };
+  const note = (item: Note): OrderNote => ({
+    id: item.id, type: item.type || "Note", importance: item.importance || "normal",
+    note: item.note_translated || item.note || "",
   });
-
-  const data = await pocketBaseRequest<PocketBaseList<PocketBaseNote>>(
-    "/api/collections/booking_notes/records",
-    { auth: token ? "none" : "optional", params, token },
-  );
-
-  return (
-    data.items?.map((item) => ({
-      id: item.id,
-      type: item.type ?? "other",
-      note: item.note_translated || item.note || "",
-      importance: item.importance ?? "normal",
-      readToCleaner: Boolean(item.read_to_cleaner),
-    })) ?? []
-  );
-}
-
-async function getClientPreferences(customerId: string, token?: string) {
-  if (customerId === "Not set") {
-    return [];
-  }
-
-  const params = new URLSearchParams({
-    filter: `client = "${customerId}"`,
-    sort: "-importance",
-  });
-
-  const data = await pocketBaseRequest<PocketBaseList<PocketBasePreference>>(
-    "/api/collections/client_preferences/records",
-    { auth: token ? "none" : "optional", params, token },
-  );
-
-  return (
-    data.items?.map((item) => ({
-      id: item.id,
-      type: item.type ?? "preference",
-      note: item.note_translated || item.note || "",
-      importance: item.importance ?? "normal",
-      isPersistent: Boolean(item.is_persistent),
-    })) ?? []
-  );
-}
-
-export async function getOrder(
-  orderId: string,
-  cleanerId: string,
-  token?: string,
-): Promise<OrderDetail | null> {
-  const order = (await getOrders(cleanerId, token)).find(
-    (item) => item.orderId === orderId,
-  );
-
-  if (!order) {
-    return null;
-  }
-
-  const [notes, preferences] = await Promise.all([
-    getBookingNotes(order.orderId, token),
-    getClientPreferences(order.customerId, token),
-  ]);
-
-  return { order, notes, preferences };
+  return {
+    async list(query: OrderQuery): Promise<OrderList> {
+      await identify();
+      let filter = `cleaner = ${quote(cleanerId)}`;
+      if (query.kind === "orders") {
+        const now = quote(new Date().toISOString().replace("T", " "));
+        if (query.view === "needs-approval") filter += ' && status = "requested"';
+        if (query.view === "past") filter += ` && end_time != "" && end_time < ${now}`;
+        if (query.view === "future") filter += ` && start_time != "" && end_time > start_time && end_time >= ${now}`;
+      }
+      if (query.kind === "calendar") {
+        filter += ` && (status = "requested" || status = "confirmed") && start_time < ${quote(query.to.replace("T", " "))} && end_time > ${quote(query.from.replace("T", " "))} && end_time > start_time`;
+      }
+      const params = { filter, sort: "-created,-id", expand: "client,address" };
+      if (query.kind === "orders") {
+        const result = await page<PocketBaseBooking>("bookings", params, query.page);
+        return { orders: result.items.map(mapBooking), total: result.totalItems, totalPages: result.totalPages, page: result.page };
+      }
+      const items = await all<PocketBaseBooking>("bookings", params);
+      return { orders: items.map(mapBooking), total: items.length, page: 1, totalPages: 1 };
+    },
+    async detail(id: string): Promise<OrderDetail> {
+      await identify();
+      const booking = await request<PocketBaseBooking & {cleaner?: string}>(
+        `/api/collections/bookings/records/${encodeURIComponent(id)}`, { expand: "client,address" },
+      );
+      if (booking.cleaner !== cleanerId) throw new BookingReadError("not-found");
+      const order = mapBooking(booking);
+      const failedSections: string[] = [];
+      const section = async (name: string, collection: string, filter: string) => {
+        const {items, error} = await collectPages<Note>(collection, {filter, sort:"-importance,id"});
+        if (error) {
+          if (signal?.aborted || error instanceof BookingReadError && error.kind === "auth") throw error;
+          failedSections.push(name);
+        }
+        return items.map(note);
+      };
+      const [notes, preferences] = await Promise.all([
+        section("Booking notes", "booking_notes", `booking = ${quote(id)}`),
+        booking.client ? section("Client preferences", "client_preferences", `client = ${quote(booking.client)}`) : Promise.resolve([]),
+      ]);
+      // Failed expansions must not silently masquerade as successfully absent data.
+      if ((booking.request_snapshot?.client?.name == null || booking.request_snapshot?.caller_phone == null) && booking.client && !booking.expand?.client) failedSections.push("Client");
+      if (!booking.request_snapshot?.address && booking.address && !booking.expand?.address) failedSections.push("Address");
+      return { order, notes, preferences, failedSections };
+    },
+  };
 }

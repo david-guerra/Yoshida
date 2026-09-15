@@ -75,10 +75,10 @@ uv run --frozen ruff check .
 uv run --frozen ruff format --check .
 cd ..
 node --test pocketbase/tests/*.test.mjs
-python3 -m unittest discover -s pocketbase/tests -p 'test_booking_http.py' -v
+python3 -m unittest discover -s pocketbase/tests -p 'test_booking*http.py' -v
 ```
 
-The frontend tests mostly inspect source contracts. Agent tests cover prompt construction and HTTP tool boundaries with test doubles; three live model evaluations are opt-in. The booking HTTP suite requires the PocketBase 0.39.4 binary described in [setup](docs/setup.md#fresh-synthetic-backend) and starts its own disposable database. These checks do not establish end-to-end voice or production readiness. Dependency installation needs network access; frontend builds do not require provider credentials.
+Dashboard tests exercise booking creation, paginated reads, account isolation, date validation, and realtime recovery through controlled transport boundaries; some frontend checks inspect source contracts. Agent tests cover prompt construction and HTTP tool boundaries with test doubles; three live model evaluations are opt-in. The booking HTTP suites require the PocketBase 0.39.4 binary described in [setup](docs/setup.md#fresh-synthetic-backend) and start their own disposable databases. See the [read and realtime verification record](docs/booking-read-verification.md) for browser and real backend evidence. These checks do not establish end-to-end voice or production readiness. Dependency installation needs network access; frontend builds do not require provider credentials.
 
 For local UI startup, environment configuration, and the conditional live demo, follow [setup](docs/setup.md). The caller UI can render without credentials; placing a call requires a configured LiveKit project. The dashboard login renders without PocketBase; signing in and reading bookings require the local backend and synthetic account described in the setup guide.
 

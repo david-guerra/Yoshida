@@ -49,7 +49,7 @@ test("protected dashboard reads cleaner identity from the PocketBase session", (
   assert.match(authSource, /requireCleanerSession/);
   assert.match(authSource, /cleanvoice_cleaner_id/);
   assert.match(homePageSource, /await requireCleanerSession\(\)/);
-  assert.match(homePageSource, /getOrders\(session\.cleanerId/);
+
   assert.doesNotMatch(homePageSource, /NEXT_PUBLIC_CLEANER_ID/);
 });
 
@@ -57,8 +57,6 @@ test("orders never fall back to mock data or a baked cleaner id", () => {
   assert.doesNotMatch(ordersSource, /mockOrders/);
   assert.doesNotMatch(ordersSource, /4bv09jvfeljswjj/);
   assert.doesNotMatch(ordersSource, /return\s+default/i);
-  assert.match(ordersSource, /getOrders\(cleanerId:\s*string/);
-  assert.match(ordersSource, /filter:\s*`cleaner = "\$\{cleanerId\}"/);
 });
 
 

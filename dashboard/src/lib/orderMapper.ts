@@ -1,11 +1,4 @@
-export type OrderStatus =
-  | "Requested"
-  | "Tentative"
-  | "Needs approval"
-  | "Confirmed"
-  | "Completed"
-  | "Assigned"
-  | "Cancelled";
+export type OrderStatus = "Requested" | "Confirmed" | "Declined" | "Unknown status";
 
 export type OrderTone = "amber" | "green" | "red";
 
@@ -15,8 +8,8 @@ export type OrderRecord = {
   customerName: string;
   customerPhone: string;
   customerEmail: string;
-  start: Date;
-  end: Date;
+  start: Date | null;
+  end: Date | null;
   location: string;
   service: string;
   price: string;
@@ -33,7 +26,11 @@ export type OrderRecord = {
   clientNotes: string;
   estimatedHours: string;
   accessNotes: string;
-  category: "upcoming" | "past";
+  category: "upcoming" | "past" | "unknown";
+  needsReview: boolean;
+  calendarEligible: boolean;
+  canConfirm: boolean;
+  canDecline: boolean;
 };
 
 export type PocketBaseBooking = {
@@ -98,36 +95,29 @@ export type PocketBaseBooking = {
   };
 };
 
-function getTone(status: string): OrderTone {
-  const normalized = status.toLowerCase();
-
-  if (normalized.includes("cancel") || normalized.includes("declin")) {
-    return "red";
-  }
-
-  if (
-    normalized.includes("complete") ||
-    normalized.includes("confirm") ||
-    normalized.includes("assigned")
-  ) {
-    return "green";
-  }
-
-  return "amber";
+function validDateParts(value: string | undefined) {
+  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?$/);
+  if (!match || match[7] && !Number.isFinite(Date.parse(value!))) return false;
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(part => Number(part || 0));
+  const date = new Date(Date.UTC(year, month-1, day, hour, minute, second));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month-1 &&
+    date.getUTCDate() === day && date.getUTCHours() === hour &&
+    date.getUTCMinutes() === minute && date.getUTCSeconds() === second;
 }
 
-function getCategory(end: Date): "upcoming" | "past" {
-  return end.getTime() < Date.now() ? "past" : "upcoming";
+function savedDate(value: string | undefined): Date | null {
+  if (!validDateParts(value) || !/(Z|[+-]\d{2}:\d{2})$/.test(value!)) return null;
+  const date = new Date(value!);
+  return Number.isFinite(date.getTime()) ? date : null;
 }
 
-function normalizeStatus(status: string | undefined) {
-  if (!status) {
-    return "Tentative";
+function normalizeStatus(status: string | undefined): OrderStatus {
+  switch (status) {
+    case "requested": return "Requested";
+    case "confirmed": return "Confirmed";
+    case "declined": return "Declined";
+    default: return "Unknown status";
   }
-
-  return status
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function formatServiceType(serviceType: string | undefined) {
@@ -152,6 +142,25 @@ function formatAddress(booking: PocketBaseBooking) {
     .join(", ");
 }
 
+function validReviewedStart(value: string | undefined) {
+  const raw = value?.trim();
+  if (!validDateParts(raw)) return false;
+  const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2})?(Z|[+-]\d{2}:\d{2})?$/.exec(raw!);
+  if (!match) return false;
+  const local = match[1] + "T" + match[2] + (match[3] || ":00");
+  if (match[4] === "Z") return true;
+  const localAt = (date: Date) => {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone:"Europe/Berlin",year:"numeric",month:"2-digit",day:"2-digit",
+      hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23",
+    }).formatToParts(date);
+    const part = (name:string) => parts.find(item => item.type === name)!.value;
+    return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}:${part("second")}`;
+  };
+  const offsets = match[4] ? [match[4]] : ["+01:00", "+02:00"];
+  return offsets.filter(offset => localAt(new Date(local + offset)) === local).length === 1;
+}
+
 function hasReviewedDetails(booking: PocketBaseBooking) {
   const snapshot = booking.request_snapshot;
   const address = snapshot?.address;
@@ -165,17 +174,18 @@ function hasReviewedDetails(booking: PocketBaseBooking) {
       address.postal_code?.trim() &&
       address.city?.trim() &&
       address.country?.trim() &&
-      request?.start_time?.trim() &&
-      request.timezone === "Europe/Berlin" &&
-      request.service_type?.trim() &&
+      validReviewedStart(request?.start_time) &&
+      request?.timezone === "Europe/Berlin" &&
+      request?.service_type?.trim() &&
       Number.isFinite(hours) &&
       hours > 0,
   );
 }
 
 export function mapBooking(record: PocketBaseBooking): OrderRecord {
-  const start = record.start_time ? new Date(record.start_time) : new Date();
-  const end = record.end_time ? new Date(record.end_time) : start;
+  const start = savedDate(record.start_time);
+  const end = savedDate(record.end_time);
+  const validSchedule = Boolean(start && end && end > start);
   const status = normalizeStatus(record.status);
   const snapshot = record.request_snapshot;
 
@@ -202,7 +212,7 @@ export function mapBooking(record: PocketBaseBooking): OrderRecord {
     budgetBelowMinimum: Boolean(record.budget_below_minimum),
     reviewedDetailsAvailable: hasReviewedDetails(record),
     status,
-    tone: getTone(status),
+    tone: status === "Confirmed" ? "green" : status === "Declined" ? "red" : "amber",
     createdAt: record.created_at ?? record.created ?? "Not set",
     summary:
       snapshot?.booking?.customer_summary ??
@@ -224,11 +234,16 @@ export function mapBooking(record: PocketBaseBooking): OrderRecord {
     accessNotes: snapshot
       ? snapshot.address?.access_notes ?? "Not set"
       : record.expand?.address?.access_notes ?? "Not set",
-    category: getCategory(end),
+    category: !validSchedule ? "unknown" : end!.getTime() < Date.now() ? "past" : "upcoming",
+    needsReview: record.status === "requested",
+    calendarEligible: validSchedule && (record.status === "requested" || record.status === "confirmed"),
+    canConfirm: record.status === "requested" && validSchedule && start!.getTime() > Date.now() && hasReviewedDetails(record),
+    canDecline: record.status === "requested",
   };
 }
 
-export function formatDate(date: Date) {
+export function formatDate(date: Date | null) {
+  if (!date) return "Unknown";
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
@@ -237,7 +252,8 @@ export function formatDate(date: Date) {
   }).format(date);
 }
 
-export function formatTime(date: Date) {
+export function formatTime(date: Date | null) {
+  if (!date) return "Unknown";
   return new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
@@ -246,6 +262,7 @@ export function formatTime(date: Date) {
 }
 
 export function formatAppointment(order: OrderRecord) {
+  if (!order.start || !order.end || order.end <= order.start) return "Unknown";
   return `${formatDate(order.start)}, ${formatTime(order.start)} - ${formatTime(
     order.end,
   )}`;
