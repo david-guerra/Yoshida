@@ -19,12 +19,16 @@ Next.js loads each application's `.env.local`; the agent loads `.env.local` rela
 | Caller, agent | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Server-only credentials for your own LiveKit project |
 | Agent; optional on caller | `LIVEKIT_URL` | Project WebSocket URL; caller falls back to its public URL |
 | Caller | `NEXT_PUBLIC_LIVEKIT_URL` | Browser-visible WebSocket URL; set before building |
-| Agent, dashboard | `POCKETBASE_URL` | Backend origin; defaults to loopback |
+| Caller, agent, dashboard | `POCKETBASE_URL` | Server-side backend origin; defaults to loopback |
 | Agent | `CLEANVOICE_POCKETBASE_URL` | Optional legacy override taking precedence over `POCKETBASE_URL`; leave unset unless needed |
 | Dashboard | `NEXT_PUBLIC_POCKETBASE_URL` | Optional browser-reachable backend origin; falls back to `POCKETBASE_URL` |
+| Caller | `CALL_SERVER_URL` | Loopback callback origin given to the worker; must match the caller dev-server origin |
+| Caller | `CALL_DATABASE_PATH` | Private SQLite call/submission ledger; defaults to `web-caller/.call-data/calls.sqlite` when started from that directory |
 | Caller, agent | `SIMULATED_CALLER_PHONE` | Synthetic lookup identity; use the same value in both and in the test backend |
 | Agent | `LIVEKIT_INFERENCE_LLM_MODEL` | Optional model override; code currently defaults to `deepseek-ai/deepseek-v4-pro` |
-| Agent | `ELEVENLABS_VOICE_ID` | Optional approved voice identifier |
+| Agent | `LIVEKIT_INFERENCE_TTS_MODEL` | Optional TTS model override; defaults to `cartesia/sonic-3.5` |
+| Agent | `LIVEKIT_INFERENCE_TTS_VOICE` | Optional stock voice override; defaults to `9626c31c-bec5-4cca-baa8-f8ba9e84c8bc` |
+| Agent | `LIVEKIT_INFERENCE_API_KEY`, `LIVEKIT_INFERENCE_API_SECRET` | Optional inference credential overrides; otherwise the regular LiveKit credentials are used |
 | Dashboard | `PB_ADMIN_EMAIL`, `PB_ADMIN_PASSWORD` | Optional legacy server-only superuser fallback; unnecessary for properly configured cleaner-user rules |
 | Dashboard | `POCKETBASE_ADMIN_EMAIL`, `POCKETBASE_ADMIN_PASSWORD` | Legacy aliases for the preceding values; prefer the `PB_ADMIN_*` names |
 | Backend server | `CLEANVOICE_CLEANER_ID` | Seeded active synthetic cleaner record ID; required for new submissions and suggestions |
@@ -85,9 +89,16 @@ For repeatable pagination and recovery checks, `python3 pocketbase/tests/serve_r
 
 ## Optional live voice demo
 
-Configure your own LiveKit project and check availability/access for the pinned voice stack. The checked-in worker uses LiveKit Inference with Deepgram Nova-3 STT, the configured LLM, ElevenLabs Flash v2.5 TTS, turn detection, and the ai-coustics plugin. Provider/model availability and account terms are separate from installing the Python SDK.
+Configure your own LiveKit project and access to the pinned voice stack. The checked-in worker uses LiveKit Inference with Deepgram Nova-3 STT, the configured LLM, Cartesia `sonic-3.5` German TTS with a stock voice, turn detection, and the ai-coustics plugin. Provider availability and account terms are separate from installing the Python SDK.
 
-[LiveKit Agents 1.8.0 release notes](https://github.com/livekit/agents/releases/tag/livekit-agents%401.8.0) report removal of ElevenLabs models from the inference gateway. This project locks Agents 1.7.0 for the dependency security fixes, but an older SDK cannot preserve a retired remote service. Verify the configured TTS route before attempting the voice demo; switching to a supported provider route may be necessary and was not exercised here.
+The standalone provider probe is explicit and billable/networked. It never places a call:
+
+```sh
+cd client-call-agent
+uv run --frozen src/speech_probe.py --run
+```
+
+A pass means the configured TTS route returned nonzero PCM within its deadline. It does not prove room dispatch, microphone input, assistant playback, or booking persistence.
 
 With the synthetic test backend running on loopback and both frontends started:
 
@@ -98,5 +109,7 @@ uv run --frozen src/agent.py dev
 ```
 
 Use `dev` so the named worker registers for browser dispatch. `console` is a separate local conversation mode and does not verify the browser flow. Choose only synthetic customer details and a permission-cleared voice. Click the caller's call control, speak a German cleaning request, then verify the resulting tentative booking under the correct cleaner account. Verify the realtime event and a manual reload separately, and verify that a second synthetic cleaner cannot read or decide the first cleaner's requests.
+
+The browser asks for microphone permission before creating the call. Each start uses a unique room. “Im Gespräch” requires both scoped worker readiness and successful playback of the worker's audio track. If autoplay is blocked, use “Audio aktivieren.” The receipt remains visible after hangup and reload; “Speicherstatus unklar” blocks a new call until the same fixed submission is reconciled. Keep `CALL_DATABASE_PATH` private and persistent for the duration of the demo. The [verification record](browser-voice-verification.md) lists the observed live path and failure boundaries.
 
 Stop the local processes after the demo. Do not deploy the token routes or custom backend publicly until authentication, rate limits, room isolation, access controls, and retention behavior have been implemented and tested.

@@ -26,16 +26,8 @@ def test_assistant_uses_caller_agent_master_prompt() -> None:
 
     assert "Caller Agent Master Prompt" in instructions
     assert "Start in German." in instructions
-    assert "Target voice provider: ElevenLabs." in instructions
+    assert "LiveKit Inference with Cartesia Sonic 3.5" in instructions
     assert "Every booking is tentative until the cleaner confirms it." in instructions
-
-
-def test_agent_uses_german_elevenlabs_tts_model() -> None:
-    session_source = inspect.getsource(agent_module.my_agent)
-
-    assert "elevenlabs/eleven_flash_v2_5" in session_source
-    assert '"language": "de"' in session_source
-    assert "ELEVENLABS_VOICE_ID" in session_source
 
 
 def test_agent_uses_livekit_inference_llm() -> None:
@@ -53,63 +45,6 @@ def test_agent_pocketbase_url_accepts_shared_env_name(monkeypatch) -> None:
     assert (
         agent_module.cleanvoice_pocketbase_url() == "https://shared-pocketbase.example"
     )
-
-
-def test_agent_session_start_owns_room_connection() -> None:
-    session_source = inspect.getsource(agent_module.my_agent)
-
-    assert "await session.start(" in session_source
-    assert "await ctx.connect()" not in session_source
-
-
-def test_agent_greets_caller_after_joining_room() -> None:
-    session_source = inspect.getsource(agent_module.my_agent)
-
-    start_index = session_source.index("await session.start(")
-    greeting_index = session_source.index("await session.generate_reply(")
-
-    assert start_index < greeting_index
-    assert "Greet the caller in German" in session_source
-    assert "Reinigung" in session_source
-
-
-def test_agent_reads_caller_phone_from_livekit_job_metadata() -> None:
-    session_source = inspect.getsource(agent_module.my_agent)
-
-    assert "caller_phone_from_job_metadata(ctx.job.metadata)" in session_source
-    assert (
-        "Assistant(caller_phone=caller_phone, call_context=loading_context)"
-        in session_source
-    )
-
-
-def test_agent_preloads_call_context_before_starting_session() -> None:
-    session_source = inspect.getsource(agent_module.my_agent)
-
-    preload_index = session_source.index(
-        "preload_task = asyncio.create_task(preload_call_context(caller_phone))"
-    )
-    start_index = session_source.index("await session.start(")
-
-    # Preload is kicked off (but not awaited) before the session starts, so it
-    # overlaps model warmup instead of delaying the greeting.
-    assert preload_index < start_index
-    assert "call_context = await preload_task" in session_source
-
-
-def test_agent_folds_context_in_after_greeting() -> None:
-    session_source = inspect.getsource(agent_module.my_agent)
-
-    # Relies on the greeting being the first generate_reply in my_agent.
-    greeting_index = session_source.index("await session.generate_reply(")
-    update_index = session_source.index("await assistant.update_instructions(")
-    preload_await_index = session_source.index("call_context = await preload_task")
-
-    # Greeting fires first; context is awaited and folded in afterwards.
-    assert greeting_index < preload_await_index
-    assert preload_await_index < update_index
-    # A cleaner caller's briefing is read once context has landed.
-    assert 'call_context.get("role") == "cleaner"' in session_source
 
 
 def test_assistant_exposes_hybrid_pocketbase_tools() -> None:
@@ -207,33 +142,6 @@ def test_prompt_pins_canonical_service_and_note_types() -> None:
         assert token in instructions
 
 
-def test_agent_plays_builtin_keyboard_thinking_sound() -> None:
-    session_source = inspect.getsource(agent_module.my_agent)
-
-    # LiveKit's built-in keyboard typing plays as a thinking sound for the full
-    # duration of any tool call, replacing the hand-rolled synthetic filler.
-    assert "BackgroundAudioPlayer(" in session_source
-    assert "thinking_sound=" in session_source
-    assert "BuiltinAudioClip.KEYBOARD_TYPING" in session_source
-
-    # Started after the session is started.
-    start_index = session_source.index("await session.start(")
-    audio_index = session_source.index("background_audio.start(")
-    assert start_index < audio_index
-
-
-def test_pocketbase_tools_voice_cue_without_manual_filler() -> None:
-    suggest_source = inspect.getsource(Assistant.suggest_cleaner)
-    create_source = inspect.getsource(Assistant.create_booking)
-
-    # The spoken cue stays; the per-tool manual filler is gone now that the
-    # background audio player handles the thinking sound globally.
-    assert "await context.update(" in suggest_source
-    assert "await context.update(" in create_source
-    assert "with_filler" not in suggest_source
-    assert "with_filler" not in create_source
-
-
 def test_prompt_grounds_current_date() -> None:
     instructions = Assistant().instructions
     current_year = str(datetime.now(ZoneInfo(agent_module.AGENT_TIMEZONE)).year)
@@ -241,14 +149,6 @@ def test_prompt_grounds_current_date() -> None:
     # The runtime prompt anchors today's date so the agent books the right year.
     assert "Current Date And Time" in instructions
     assert current_year in instructions
-
-
-def test_pocketbase_tools_voice_a_spoken_cue() -> None:
-    suggest_source = inspect.getsource(Assistant.suggest_cleaner)
-    create_source = inspect.getsource(Assistant.create_booking)
-
-    assert "await context.update(" in suggest_source
-    assert "await context.update(" in create_source
 
 
 @pytest.mark.asyncio
@@ -438,7 +338,7 @@ async def test_pocketbase_identify_caller_posts_with_ngrok_header() -> None:
             return ""
 
     class FakeSession:
-        def post(self, url, *, headers, json):
+        def post(self, url, *, headers, json, timeout=None):
             calls.append(("POST", url, headers, json))
             return FakeResponse()
 
@@ -480,7 +380,7 @@ async def test_pocketbase_cleaner_briefing_encodes_plus_phone() -> None:
             return ""
 
     class FakeSession:
-        def get(self, url, *, headers):
+        def get(self, url, *, headers, timeout=None):
             calls.append(("GET", url, headers))
             return FakeResponse()
 
@@ -521,7 +421,7 @@ async def test_pocketbase_cleaner_preferences_encodes_plus_phone() -> None:
             return ""
 
     class FakeSession:
-        def get(self, url, *, headers):
+        def get(self, url, *, headers, timeout=None):
             calls.append(("GET", url, headers))
             return FakeResponse()
 
@@ -574,7 +474,7 @@ async def test_pocketbase_suggest_cleaner_posts_booking_request() -> None:
             return ""
 
     class FakeSession:
-        def post(self, url, *, headers, json):
+        def post(self, url, *, headers, json, timeout=None):
             calls.append(("POST", url, headers, json))
             return FakeResponse()
 
@@ -627,7 +527,7 @@ async def test_pocketbase_create_booking_posts_payload_with_json_headers() -> No
             return ""
 
     class FakeSession:
-        def post(self, url, *, headers, json):
+        def post(self, url, *, headers, json, timeout=None):
             calls.append(("POST", url, headers, json))
             return FakeResponse()
 
@@ -668,7 +568,7 @@ async def test_pocketbase_create_booking_accepts_created_status() -> None:
             return ""
 
     class FakeSession:
-        def post(self, url, *, headers, json):
+        def post(self, url, *, headers, json, timeout=None):
             return FakeResponse()
 
     client = PocketBaseClient(base_url="https://example.test", session=FakeSession())

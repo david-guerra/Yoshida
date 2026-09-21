@@ -21,13 +21,44 @@ class SubmissionUnclearError(Exception):
 
 
 class Submission:
-    def __init__(self) -> None:
+    def __init__(
+        self, *, submission_id: str | None = None, recovery_token: str | None = None
+    ) -> None:
+        if (submission_id is None) != (recovery_token is None):
+            raise ValueError("Submission identity and token must be provided together")
+        if submission_id is not None and (
+            not submission_id.strip() or not recovery_token.strip()
+        ):
+            raise ValueError("Submission identity and token must be nonempty")
+        self._fixed_id = submission_id
+        self._fixed_token = recovery_token
+        self._pending: set[asyncio.Task] = set()
         self._lock = asyncio.Lock()
         self._approved: dict[str, Any] | None = None
         self._payload: dict[str, Any] | None = None
         self._token = ""
         self._receipt: dict[str, Any] | None = None
         self._uncertain = False
+
+    async def save_durable(self, approved, send) -> dict[str, Any]:
+        # Retain a strong reference and drain during job shutdown. Cancellation
+        # of the speech/tool waiter must not cancel the in-flight mutation.
+        return await asyncio.shield(self.begin_save(approved, send))
+
+    def begin_save(self, approved, send) -> asyncio.Task:
+        task = asyncio.create_task(self.save(copy.deepcopy(approved), send))
+        self._pending.add(task)
+        task.add_done_callback(self._finished)
+        return task
+
+    def _finished(self, task: asyncio.Task) -> None:
+        self._pending.discard(task)
+        if not task.cancelled():
+            task.exception()  # Retrieve errors even if speech no longer awaits us.
+
+    async def drain(self) -> None:
+        if self._pending:
+            await asyncio.shield(asyncio.gather(*self._pending, return_exceptions=True))
 
     async def save(
         self,
@@ -49,9 +80,9 @@ class Submission:
                 self._approved = copy.deepcopy(approved)
                 self._payload = {
                     **copy.deepcopy(approved),
-                    "submission_id": str(uuid.uuid4()),
+                    "submission_id": self._fixed_id or str(uuid.uuid4()),
                 }
-                self._token = secrets.token_urlsafe(32)
+                self._token = self._fixed_token or secrets.token_urlsafe(32)
             for attempt in range(2):
                 try:
                     receipt = await asyncio.wait_for(

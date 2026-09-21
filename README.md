@@ -4,14 +4,14 @@
 
 A hackathon voice AI prototype for independent cleaners facing a language barrier with German-speaking clients. A browser caller speaks German with an agent; the intended outcome is a tentative cleaning request that a cleaner can review in their own language.
 
-**Status: hackathon prototype for supervised local demos.** This repository includes the caller, agent, dashboard, and PocketBase hooks/schema setup. A fresh synthetic database, booking creation, cleaner login, and component tests have been verified. Live voice calls were not revalidated: they require your own provider account and a supported TTS route. See the [current gateway limitation](docs/setup.md#optional-live-voice-demo); live model evaluations are opt-in.
+**Status: hackathon prototype for supervised local demos.** This repository includes the caller, agent, dashboard, and PocketBase hooks/schema setup. A fresh synthetic database, booking creation, cleaner login, component tests, and one complete German browser voice request were verified. The live run used the supported Cartesia route and produced a durable `requested` booking receipt. See the [browser voice verification record](docs/browser-voice-verification.md); live provider checks remain opt-in.
 
 ## Demo flow
 
-1. The caller app requests microphone access and a server-minted LiveKit token for `demo-call`.
-2. The server dispatches the `client-call-agent` worker with a synthetic caller identity.
+1. The caller app requests microphone access before any token or dispatch work.
+2. The caller server creates one private call record, unique room, browser token, worker capability, and fixed submission identity, then dispatches `client-call-agent`.
 3. The agent opens in German while loading caller context from PocketBase, then collects a cleaning request.
-4. Its tools request cleaner preferences, suggest a match, and submit a tentative booking.
+4. Its tools request cleaner preferences, suggest a match, and submit the reviewed request through the caller server, which preserves the outcome across worker loss or reload.
 5. The authenticated dashboard reads bookings and receives realtime refreshes from PocketBase; the cleaner reviews the result.
 
 The backend creates requests with `requested` status regardless of a caller-supplied status. The owning cleaner can Confirm or Decline a reviewed request in the dashboard; the decision is persisted through the authenticated booking API. The local setup checks exercise booking tools and dashboard reads; they do not establish live speech quality, translation accuracy, or suitability for real customer data.
@@ -20,18 +20,20 @@ The backend creates requests with `requested` status regardless of a caller-supp
 
 ```mermaid
 flowchart LR
-    Caller[web-caller browser] <-->|audio| Room[LiveKit room]
-    Caller --> Token[web-caller server: token + dispatch]
-    Token --> Room
+    Caller[web-caller browser] <-->|audio| Room[unique LiveKit room]
+    Caller --> CallServer[web-caller server: call ledger + dispatch + receipt]
+    CallServer --> Room
     Room <--> Agent[client-call-agent: Python]
+    Agent <--> CallServer
     Agent --> Inference[LiveKit Inference: STT / LLM / TTS]
-    Agent --> PB[PocketBase hooks + SQLite]
+    CallServer --> PB[PocketBase hooks + SQLite]
+    Agent --> PB
     Dashboard[dashboard: Next.js + browser realtime] <--> PB
 ```
 
 | Directory | Responsibility |
 | --- | --- |
-| `web-caller/` | Next.js caller UI, microphone access, LiveKit token signing and dispatch |
+| `web-caller/` | Next.js caller UI, microphone/audio lifecycle, call ledger, LiveKit dispatch, and receipt recovery |
 | `client-call-agent/` | Python LiveKit worker, German conversation prompt, PocketBase HTTP tools |
 | `dashboard/` | Next.js cleaner login, bookings, calendar, preferences, and realtime client |
 | `pocketbase/` | Schema setup, synthetic cleaner seed, HTTP hooks, and localization helpers |
@@ -78,7 +80,7 @@ node --test pocketbase/tests/*.test.mjs
 python3 -m unittest discover -s pocketbase/tests -p 'test_booking*http.py' -v
 ```
 
-Dashboard tests exercise booking creation, paginated reads, account isolation, date validation, and realtime recovery through controlled transport boundaries; some frontend checks inspect source contracts. Agent tests cover prompt construction and HTTP tool boundaries with test doubles; three live model evaluations are opt-in. The booking HTTP suites require the PocketBase 0.39.4 binary described in [setup](docs/setup.md#fresh-synthetic-backend) and start their own disposable databases. See the [read and realtime verification record](docs/booking-read-verification.md) for browser and real backend evidence. These checks do not establish end-to-end voice or production readiness. Dependency installation needs network access; frontend builds do not require provider credentials.
+Dashboard tests exercise booking creation, paginated reads, account isolation, date validation, and realtime recovery through controlled transport boundaries; some frontend checks inspect source contracts. Agent tests cover prompt construction, provider configuration, call capabilities, and HTTP tool boundaries with test doubles; three live model evaluations are opt-in. Caller tests cover cancellation, unique dispatch, ambiguous save recovery, receipt persistence, and bounded lifecycle exits. The booking HTTP suites require the PocketBase 0.39.4 binary described in [setup](docs/setup.md#fresh-synthetic-backend) and start their own disposable databases. See the [read and realtime verification record](docs/booking-read-verification.md) and [browser voice verification record](docs/browser-voice-verification.md). Automated checks alone do not establish speech quality or production readiness. Dependency installation needs network access; frontend builds do not require provider credentials.
 
 For local UI startup, environment configuration, and the conditional live demo, follow [setup](docs/setup.md). The caller UI can render without credentials; placing a call requires a configured LiveKit project. The dashboard login renders without PocketBase; signing in and reading bookings require the local backend and synthetic account described in the setup guide.
 
@@ -93,7 +95,7 @@ The [media inventory](design/README.md) also records the historical design conce
 ## Limitations and boundaries
 
 - Browser audio simulates a call; no checked-in SIP/PSTN telephone integration exists.
-- The caller uses a fixed room and participant identity. Its token and dispatch routes have no authentication or rate limiting. Run them on loopback for supervised demos; do not expose a credentialed caller publicly.
+- The caller uses fresh rooms and random scoped capabilities, but it has no end-user account, rate limiting, multi-instance call ledger, or public deployment hardening. Run it on loopback for supervised demos.
 - Caller lookup and briefing routes remain unauthenticated and custom routes have no rate limits. Booking decisions require the owning cleaner; collection reads are owner-filtered and direct booking writes are locked. Keep the backend on loopback with disposable synthetic data.
 - Requests route to the explicitly configured active cleaner and warn about a low budget; this does not establish availability, location, or service matching. Booking creation is transactional, and retries with the same submission identity and reviewed payload return the original tentative receipt.
 - Audio, text, and tool context can reach configured inference providers. Retention, recording consent, deletion, and approved voice use have not been established for real callers.

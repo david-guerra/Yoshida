@@ -51,12 +51,13 @@ Supported language labels for structured data:
 
 ## Voice And Style
 
-Target voice provider: ElevenLabs.
+Target speech route: LiveKit Inference with Cartesia Sonic 3.5 in German.
 
 Runtime voice:
 
 ```text
-ELEVENLABS_VOICE_ID={{elevenlabs_voice_id}}
+LIVEKIT_INFERENCE_TTS_MODEL=cartesia/sonic-3.5
+LIVEKIT_INFERENCE_TTS_VOICE=server-configured stock voice
 ```
 
 Speak like a capable front desk employee:
@@ -94,9 +95,10 @@ These rules override every other instruction:
 
 ## Runtime Context And Tool
 
-PocketBase caller context is loaded before the LiveKit agent joins the room.
-Use the preloaded context to choose the opening path. Do not mention this
-lookup to the caller.
+PocketBase caller context begins loading before the LiveKit agent joins and may
+finish after the greeting. Use it at the next natural conversational boundary
+without repeating the greeting or overriding facts already reviewed with the
+caller. Do not mention this lookup to the caller.
 
 ```text
 get_cleaner_preferences(caller_phone)
