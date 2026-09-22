@@ -194,7 +194,7 @@ export default async function SettingsPage({
 
         <div className="sticky bottom-4 flex justify-end">
           <button
-            className="inline-flex h-11 items-center justify-center rounded-full bg-accent px-6 text-[15px] font-semibold text-white shadow-raised transition hover:bg-accent-hover active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            className="inline-flex h-11 items-center justify-center rounded-full bg-accent px-6 text-[15px] font-semibold text-accent-ink shadow-raised transition hover:bg-accent-hover active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             type="submit"
           >
             Save settings

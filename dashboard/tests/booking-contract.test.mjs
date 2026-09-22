@@ -22,6 +22,7 @@ import {
 } from "../src/lib/bookingApi.ts";
 import {
   formatDate,
+  formatRequestedStart,
   formatTime,
   mapBooking,
 } from "../src/lib/orderMapper.ts";
@@ -457,7 +458,19 @@ test("order detail display prefers the immutable reviewed request snapshot", () 
   assert.equal(order.location, "Invalidenstraße 1, 10115, Berlin, DE");
   assert.equal(order.accessNotes, "Third floor");
   assert.equal(order.clientNotes, "Call at the courtyard door");
+  assert.equal(order.requestedStart, expectedPayload.booking.start_time);
+  assert.equal(order.requestedTimezone, "Europe/Berlin");
   assert.equal(order.reviewedDetailsAvailable, true);
+});
+
+test("order detail preserves the requested offset through the Berlin clock overlap", () => {
+  const snapshot = structuredClone(expectedPayload);
+  snapshot.booking.start_time = "2027-10-31T02:30:00+01:00";
+  const order = mapBooking({id: "overlap", request_snapshot: snapshot});
+
+  assert.equal(order.requestedStart, "2027-10-31T02:30:00+01:00");
+  assert.equal(formatRequestedStart(order.requestedStart), "31 Oct 2027, 02:30 (UTC+01:00)");
+  assert.equal(formatRequestedStart(""), "Not set");
 });
 
 test("missing optional snapshot values do not fall back to later shared client data", () => {

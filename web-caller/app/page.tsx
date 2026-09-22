@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { createCallSession, CALL_COPY, type CallReference, type CallView } from '@/lib/call-session';
 import { connectCall } from '@/lib/livekit-browser';
@@ -41,25 +42,37 @@ export default function Home() {
   const unresolved=['saving','unclear'].includes(state.submission.state);
   const active=!['ready','ended'].includes(state.call);
   return (
-    <main lang="de" className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-8 p-6 sm:p-12">
-      <header><p className="mb-2 text-sm font-semibold tracking-widest">YOSHIDA</p><h1 className="text-4xl font-semibold leading-tight">Ihre Reinigung beginnt mit einem Gespräch.</h1><p className="mt-4 text-lg opacity-80">Beschreiben Sie Ihren Wunsch auf Deutsch. Die Reinigungskraft prüft Ihre Anfrage und entscheidet anschließend.</p></header>
-      <section aria-label="Anruf" className="rounded-2xl border border-current/20 p-6">
-        <p role="status" className="text-xl font-semibold">{labels[state.call]}</p>
-        {state.call==='permission'&&<p className="mt-3">Bitte erlauben Sie den Mikrofonzugriff im Browser. Sie können jederzeit abbrechen.</p>}
-        <div className="mt-5 flex flex-wrap gap-3">
-          <button className="rounded-full bg-emerald-700 px-6 py-3 font-semibold text-white disabled:opacity-50" disabled={!state.canStart} onClick={()=>void session.current?.start()}>{state.call==='ready'?'Anruf starten':'Neuen Anruf starten'}</button>
-          {(active||!state.ended)&&<button className="rounded-full border px-6 py-3 font-semibold" onClick={()=>void session.current?.end()}>{state.call==='permission'?'Abbrechen':'Auflegen'}</button>}
-          {state.audioBlocked&&<button className="rounded-full bg-sky-700 px-6 py-3 font-semibold text-white" onClick={()=>void session.current?.enableAudio()}>Audio aktivieren</button>}
+    <>
+      <a className="skip-link" href="#call">Zum Anruf</a>
+      <header className="caller-header"><Link className="caller-brand" href="/" aria-label="Yoshida Startseite"><span aria-hidden="true">y</span>yoshida</Link><p>Deutsch · Browseranruf mit KI-Assistent</p></header>
+      <main className="caller-layout">
+        <section className="caller-intro"><h1>Eine Reinigung.<br />Ein Gespräch.</h1><p>Teilen Sie uns mit, wann und wo Sie Unterstützung brauchen. Die Reinigungskraft prüft anschließend Ihre Anfrage.</p><p className="muted">Bitte halten Sie Adresse, Termin und gewünschte Dauer bereit.</p></section>
+        <div>
+          <section id="call" tabIndex={-1} aria-label="Anruf" className="call-panel">
+            <div className={`voice-mark ${active ? 'active' : ''}`} aria-hidden="true">{active ? '≋' : '◌'}</div>
+            <h2 role="status">{labels[state.call]}</h2>
+            {state.call==='ready'&&<p>Starten Sie einen Anruf und erzählen Sie uns von Ihrem Reinigungswunsch.</p>}
+            {state.call==='permission'&&<p>Bitte erlauben Sie den Mikrofonzugriff im Browser. Sie können jederzeit abbrechen.</p>}
+            {['connecting','starting'].includes(state.call)&&<p>Wir bereiten das Gespräch vor. Bitte warten Sie einen Moment.</p>}
+            {state.call==='conversation'&&<p>Der Assistent hört Ihnen zu. Prüfen Sie Ihre Angaben im Gespräch, bevor die Anfrage gesendet wird.</p>}
+            {state.call==='reconnecting'&&<p>Die Verbindung ist unterbrochen. Wir versuchen, sie wiederherzustellen.</p>}
+            {state.call==='ended'&&<p>Das Gespräch ist beendet. Den Speicherstatus Ihrer Anfrage sehen Sie unten.</p>}
+            <div className="call-actions">
+              <button className="primary" disabled={!state.canStart} onClick={()=>void session.current?.start()}>{state.call==='ready'?'Anruf starten':'Neuen Anruf starten'}</button>
+              {(active||!state.ended)&&<button className="danger" onClick={()=>void session.current?.end()}>{state.call==='permission'?'Abbrechen':'Auflegen'}</button>}
+              {state.audioBlocked&&<button className="primary" onClick={()=>void session.current?.enableAudio()}>Audio aktivieren</button>}
+            </div>
+            {state.error&&<p role="alert" className="call-error">{state.error}</p>}
+            <section aria-label="Ihre Anfrage" aria-live="polite" aria-atomic="true" className={`call-receipt ${state.submission.state==='saved'?'saved':unresolved?'unclear':''}`}>
+              <h3>{state.submission.state==='saved'?'Anfrage gespeichert':state.submission.state==='saving'?'Anfrage wird gespeichert':unresolved?'Speicherstatus unklar':'Ihre Anfrage'}</h3>
+              {state.submission.state==='saved'?<><p>Ihre Anfrage wurde gespeichert. Die Reinigungskraft muss sie noch bestätigen.</p><p><strong>Anfragenummer: {state.submission.receipt?.booking_id}</strong></p></>:state.submission.state==='rejected'?<p>Ihre Anfrage wurde nicht gespeichert. Bitte prüfen Sie die Angaben im Gespräch.</p>:unresolved?<p>{CALL_COPY.unclear}</p>:<p>Ihre Anfrage wurde noch nicht gesendet.</p>}
+              {(unresolved||!state.ended)&&<button disabled={state.checking} onClick={()=>void session.current?.refresh()}>Status prüfen</button>}
+              {unresolved&&<p>Bitte prüfen Sie diese Anfrage, bevor Sie einen neuen Anruf starten. Der Status bleibt auch nach dem Auflegen und Neuladen in diesem Tab verfügbar.</p>}
+            </section>
+          </section>
         </div>
-        {state.error&&<p role="alert" className="mt-4 break-words">{state.error}</p>}
-      </section>
-      <section aria-label="Ihre Anfrage" aria-live="polite" aria-atomic="true" className="rounded-2xl border border-current/20 p-6">
-        <h2 className="text-xl font-semibold">{state.submission.state==='saved'?'Anfrage gespeichert':state.submission.state==='saving'?'Anfrage wird gespeichert':unresolved?'Speicherstatus unklar':'Ihre Anfrage'}</h2>
-        {state.submission.state==='saved'?<><p className="mt-3">Ihre Anfrage wurde gespeichert. Die Reinigungskraft muss sie noch bestätigen.</p><p className="mt-3 break-all font-semibold">Anfragenummer: {state.submission.receipt?.booking_id}</p></>:state.submission.state==='rejected'?<p className="mt-3">Ihre Anfrage wurde nicht gespeichert. Bitte prüfen Sie die Angaben im Gespräch.</p>:unresolved?<p className="mt-3">{CALL_COPY.unclear}</p>:<p className="mt-3">Ihre Anfrage wurde noch nicht gesendet.</p>}
-        {(unresolved||!state.ended)&&<button className="mt-4 rounded-full border px-5 py-3 font-semibold disabled:opacity-50" disabled={state.checking} onClick={()=>void session.current?.refresh()}>Status prüfen</button>}
-        {unresolved&&<p className="mt-3 text-sm">Bitte prüfen Sie diese Anfrage, bevor Sie einen neuen Anruf starten. Der Status bleibt auch nach dem Auflegen und Neuladen in diesem Tab verfügbar.</p>}
-      </section>
-      <p className="text-sm opacity-70">Lokale Demonstration mit fiktiven Kontaktdaten.</p>
-    </main>
+      </main>
+      <footer className="caller-footer">Lokale Demonstration mit fiktiven Kontaktdaten. Yoshida von David Guerra, lishiiChan und younaorg.</footer>
+    </>
   );
 }

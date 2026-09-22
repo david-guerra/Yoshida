@@ -27,7 +27,7 @@ test("orders card links to existing dashboard routes only", () => {
   assert.match(ordersCardSource, /\/orders/);
 });
 
-test("orders page exposes filters as navigable links", () => {
-  assert.match(ordersPageSource, /href:\s*"\/orders"/);
-  assert.match(ordersPageSource, /href:\s*"\/orders\?view=needs-approval"/);
+test("legacy orders page uses the same live request inbox", () => {
+  assert.match(ordersPageSource, /LiveOrdersDashboard/);
+  assert.match(ordersPageSource, /initialView=/);
 });

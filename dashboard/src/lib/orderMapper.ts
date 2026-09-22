@@ -26,6 +26,8 @@ export type OrderRecord = {
   clientNotes: string;
   estimatedHours: string;
   accessNotes: string;
+  requestedStart: string;
+  requestedTimezone: string;
   category: "upcoming" | "past" | "unknown";
   needsReview: boolean;
   calendarEligible: boolean;
@@ -234,6 +236,8 @@ export function mapBooking(record: PocketBaseBooking): OrderRecord {
     accessNotes: snapshot
       ? snapshot.address?.access_notes ?? "Not set"
       : record.expand?.address?.access_notes ?? "Not set",
+    requestedStart: snapshot?.booking?.start_time?.trim() || "Not set",
+    requestedTimezone: snapshot?.booking?.timezone?.trim() || "Not set",
     category: !validSchedule ? "unknown" : end!.getTime() < Date.now() ? "past" : "upcoming",
     needsReview: record.status === "requested",
     calendarEligible: validSchedule && (record.status === "requested" || record.status === "confirmed"),
@@ -259,6 +263,18 @@ export function formatTime(date: Date | null) {
     minute: "2-digit",
     timeZone: "Europe/Berlin",
   }).format(date);
+}
+
+export function formatRequestedStart(value: string) {
+  const raw = value.trim();
+  if (!raw || raw === "Not set") return "Not set";
+  const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?$/.exec(raw);
+  if (!match || !validDateParts(raw)) return `${raw} (invalid saved value)`;
+  const date = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit", month: "short", year: "numeric", timeZone: "UTC",
+  }).format(new Date(`${match[1]}T12:00:00Z`));
+  const offset = match[4] === "Z" ? "+00:00" : match[4];
+  return `${date}, ${match[2]}:${match[3]}${offset ? ` (UTC${offset})` : ""}`;
 }
 
 export function formatAppointment(order: OrderRecord) {
