@@ -6,10 +6,12 @@ The project was renamed from CleanVoice to Yoshida. Existing `CLEANVOICE_*` envi
 
 ## Environment files
 
+Create only missing local environment files; preserve existing configured files.
+
 ```sh
-cp dashboard/.env.example dashboard/.env.local
-cp web-caller/.env.example web-caller/.env.local
-cp client-call-agent/.env.example client-call-agent/.env.local
+cp -n dashboard/.env.example dashboard/.env.local
+cp -n web-caller/.env.example web-caller/.env.local
+cp -n client-call-agent/.env.example client-call-agent/.env.local
 ```
 
 Next.js loads each application's `.env.local`; the agent loads `.env.local` relative to its working directory. A root `.env` does not configure all three components. Leave optional blank entries commented out: some code distinguishes an unset variable from an empty string.
@@ -39,6 +41,11 @@ Next.js loads each application's `.env.local`; the agent loads `.env.local` rela
 Do not put API keys, secrets, or admin passwords in `NEXT_PUBLIC_*`. All values in committed examples are empty or explicitly synthetic/local. Example phone identities use NANPA's reserved fictional 555-0100–0199 block; the US prefix is intentional even though the voice demo is in German. They are lookup keys, not numbers to call.
 
 ## UI-only startup
+
+For a repeatable stack with fresh synthetic data, private caller storage, isolated
+frontend copies and optional worker startup, use the [integrated acceptance launcher
+and runbook](integrated-acceptance.md). It preserves existing environment files,
+refuses occupied ports, and retains its disposable run data after shutdown.
 
 In separate terminals:
 

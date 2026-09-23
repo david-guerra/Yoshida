@@ -1,11 +1,9 @@
-import { redirect } from "next/navigation";
 import { Brand } from "@/src/components/AppShell";
 import ThemeToggle from "@/src/components/ThemeToggle";
 import { Card } from "@/src/components/ui/Card";
 import { TextField } from "@/src/components/ui/Field";
 import { WarningIcon } from "@/src/components/ui/icons";
 import { loginAction } from "@/src/app/login/actions";
-import { getCleanerSession } from "@/src/lib/auth";
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -15,12 +13,8 @@ type LoginPageProps = {
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const existingSession = await getCleanerSession();
-
-  if (existingSession) {
-    redirect("/");
-  }
-
+  // A stored cookie may have expired or belong to a different backend. Keep
+  // reauthentication reachable; a successful sign-in replaces the old session.
   const { error, next } = await searchParams;
 
   return (
