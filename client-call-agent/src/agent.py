@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import math
 import os
 from datetime import datetime
 from pathlib import Path
@@ -417,7 +418,8 @@ class Assistant(Agent):
             "description": (
                 "Create a tentative cleaning booking in PocketBase after collecting "
                 "the caller phone, optional cleaner_phone from suggest_cleaner, "
-                "cleaner_language, client, address, booking, booking_notes, "
+                "cleaner_language, client, address, booking with positive "
+                "estimated_hours, booking_notes, "
                 "and client_preferences fields."
             ),
             "parameters": {
@@ -439,10 +441,23 @@ class Assistant(Agent):
     ) -> dict[str, Any]:
         """Create a tentative cleaning booking in PocketBase."""
 
-        context.disallow_interruptions()
         payload = raw_arguments.get("payload")
         if not isinstance(payload, dict):
             raise ToolError("create_booking requires a payload object.")
+        booking = payload.get("booking")
+        duration = booking.get("estimated_hours") if isinstance(booking, dict) else None
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isfinite(duration)
+            or duration <= 0
+        ):
+            raise ToolError(
+                "Die positive Dauer fehlt. Fragen Sie nach der gewünschten Dauer "
+                "in Stunden, lesen Sie die vollständige Zusammenfassung erneut vor "
+                "und holen Sie eine neue ausdrückliche Freigabe ein, bevor Sie speichern."
+            )
+        context.disallow_interruptions()
         save_task = self._submission.begin_save(
             payload, self._submit_client.create_booking
         )

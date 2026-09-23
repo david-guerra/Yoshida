@@ -56,7 +56,9 @@ def reviewed_start(value):
     return start.astimezone(timezone.utc)
 
 
-def verify(run, booking_id, expected_status, expected_count, budget, source):
+def verify(
+    run, booking_id, expected_status, expected_count, budget, source, allow_empty_notes
+):
     manifest = json.loads((run / "ready.json").read_text())
     credentials = json.loads((run / "login.json").read_text())
     base = manifest["pocketbase"]
@@ -80,7 +82,8 @@ def verify(run, booking_id, expected_status, expected_count, budget, source):
     )
     require(not booking["price_known"], "Confirmation invented an agreed price")
     require(
-        booking["budget_known"] == (budget == "low"), "Unexpected known/unknown budget"
+        booking["budget_known"] == (budget != "unknown"),
+        "Unexpected known/unknown budget",
     )
     require(
         booking["budget_below_minimum"] == (budget == "low"),
@@ -192,7 +195,7 @@ def verify(run, booking_id, expected_status, expected_count, budget, source):
         == Counter(
             tuple(note.get(field) for field in note_fields) for note in expected_notes
         )
-        and len(notes) > 0,
+        and (allow_empty_notes or len(notes) > 0),
         "Persisted notes differ from review",
     )
     # Preferences accumulate across repeat calls for the same client. Compare the
@@ -304,7 +307,12 @@ def main():
         "--status", choices=("requested", "confirmed", "declined"), required=True
     )
     parser.add_argument("--count", type=int, required=True)
-    parser.add_argument("--budget", choices=("unknown", "low"), required=True)
+    parser.add_argument("--budget", choices=("unknown", "low", "known"), required=True)
+    parser.add_argument(
+        "--allow-empty-notes",
+        action="store_true",
+        help="Use only when the reviewed scenario intentionally has no notes",
+    )
     parser.add_argument(
         "--source", choices=("voice-call", "dashboard"), default="voice-call"
     )
@@ -317,6 +325,7 @@ def main():
             args.count,
             args.budget,
             args.source,
+            args.allow_empty_notes,
         )
     except (OSError, RuntimeError, KeyError, ValueError, sqlite3.Error) as error:
         parser.exit(

@@ -142,6 +142,9 @@ unrelated-owner read/decision rejection, and the matching saved browser ledger e
 It does not prove speech, correct transcription, translation quality or screen behavior.
 `--source dashboard` deliberately identifies controlled/manual requests and omits the
 voice-ledger assertion; never use it to claim scenarios A/B passed.
+For an additional diagnostic call with a known budget at or above the cleaner's
+minimum, use `--budget known`. If that reviewed call intentionally has no booking
+notes, add `--allow-empty-notes`; the A/B checks above keep requiring notes.
 
 ## Failure and access checks
 

@@ -403,6 +403,9 @@ def main():
         )
         return 1
     finally:
+        # Repeated Ctrl-C during teardown must not abandon process groups.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         stack.close()
 
 

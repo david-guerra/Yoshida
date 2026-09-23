@@ -146,6 +146,7 @@ p,dd,.review-note,small {overflow-wrap:anywhere}
 /* Stable inbox geometry while filters and complete reads change. */
 .request-list {height:456px;overflow-y:auto;overscroll-behavior:contain}
 @media(max-width:650px) {.request-list{height:602px}}
+@media(max-width:360px) {.fluid-tabs button{flex-direction:column;gap:1px;min-height:50px;padding:4px 1px;white-space:normal;line-height:1.15}.fluid-tabs .pillcount{font-size:10px;padding-inline:3px}}
 .week-days .day-appointments {padding:0}
 .week-hour {height:110px;padding:5px;border-bottom:1px solid var(--color-separator);overflow-y:auto}
 .hour-label {display:block;font-size:11px;color:var(--color-secondary);margin-bottom:3px}

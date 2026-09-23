@@ -294,9 +294,51 @@ async def test_spoken_save_cue_failure_cannot_prevent_approved_submission():
         submission=Submission(submission_id="fixed", recovery_token="token"),
         submit_client=Backend(),
     )
-    assert (await assistant.create_booking({"payload": {"reviewed": True}}, Speech()))[
-        "booking_id"
-    ] == "saved"
+    assert (
+        await assistant.create_booking(
+            {"payload": {"reviewed": True, "booking": {"estimated_hours": 2}}}, Speech()
+        )
+    )["booking_id"] == "saved"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("duration", [None, 0, -1, True, float("nan")])
+async def test_missing_duration_is_caught_before_announcing_or_sending_save(duration):
+    from livekit.agents.llm import ToolError
+
+    from agent import Assistant
+
+    calls = []
+
+    class Backend:
+        async def create_booking(self, payload, token):
+            calls.append(payload)
+            return receipt(payload)
+
+    class Speech:
+        def __init__(self):
+            self.blocked = False
+            self.spoken = []
+
+        def disallow_interruptions(self):
+            self.blocked = True
+
+        async def update(self, text):
+            self.spoken.append(text)
+
+    speech = Speech()
+    assistant = Assistant(
+        submission=Submission(submission_id="fixed", recovery_token="token"),
+        submit_client=Backend(),
+    )
+    with pytest.raises(ToolError, match="Dauer"):
+        await assistant.create_booking(
+            {"payload": {"reviewed": True, "booking": {"estimated_hours": duration}}},
+            speech,
+        )
+    assert calls == []
+    assert speech.spoken == []
+    assert not speech.blocked
 
 
 @pytest.mark.asyncio
