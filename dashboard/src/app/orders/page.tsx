@@ -1,29 +1,19 @@
 import Link from "next/link";
 import AppShell from "@/src/components/AppShell";
 import { buttonClass } from "@/src/components/ui/Button";
-import SegmentedControl from "@/src/components/ui/SegmentedControl";
 import { PlusIcon } from "@/src/components/ui/icons";
 import { requireCleanerSession } from "@/src/lib/auth";
-import OrdersList from "@/src/components/OrdersList";
+import LiveOrdersDashboard from "@/src/components/LiveOrdersDashboard";
+import { bookingDecisionUi } from "@/src/lib/bookingDecisionUi";
 import { getPublicPocketBaseUrl } from "@/src/lib/pocketbase";
 
 type OrdersSearchParams = Promise<{
   view?: string | string[] | undefined;
   page?: string;
+  notice?: string;
 }>;
 
 type OrderView = "all" | "future" | "past" | "needs-approval";
-
-const orderFilters: { label: string; href: string; view: OrderView }[] = [
-  { label: "All", href: "/orders", view: "all" },
-  {
-    label: "Needs approval",
-    href: "/orders?view=needs-approval",
-    view: "needs-approval",
-  },
-  { label: "Upcoming", href: "/orders?view=future", view: "future" },
-  { label: "Past", href: "/orders?view=past", view: "past" },
-];
 
 function firstSearchValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -47,30 +37,26 @@ export default async function OrdersPage({
   const activeView = normalizeOrderView(
     firstSearchValue((await searchParams).view),
   );
+  const notice = firstSearchValue((await searchParams).notice);
+  const initialAnnouncement = notice === "confirmed" || notice === "declined"
+    ? bookingDecisionUi[notice].savedAnnouncement
+    : "";
 
   return (
     <AppShell
       active="orders"
-      title="Orders"
-      subtitle="Every call the voice agent handled, qualified, and saved to PocketBase."
+      title="Requests"
+      subtitle="A clear inbox. A good day ahead."
       actions={
         <Link className={buttonClass("filled", "sm")} href="/orders/new">
           <PlusIcon className="h-4 w-4" />
-          New order
+          New request
         </Link>
       }
     >
-      <div className="mb-5 overflow-x-auto pb-1">
-        <SegmentedControl
-          segments={orderFilters.map((filter) => ({
-            label: filter.label,
-            href: filter.href,
-            active: filter.view === activeView,
-          }))}
-        />
-      </div>
-
-      <OrdersList session={{...session, pocketBaseUrl:getPublicPocketBaseUrl()}} page={page} view={activeView} />
+      <LiveOrdersDashboard key={activeView + page} {...session} pocketBaseUrl={getPublicPocketBaseUrl()}
+        initialPage={page} initialView={activeView === "future" ? "upcoming" : activeView === "past" ? "history" : "review"}
+        initialAnnouncement={initialAnnouncement} />
     </AppShell>
   );
 }

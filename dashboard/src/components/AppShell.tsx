@@ -1,259 +1,69 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import LogoutForm from "./LogoutForm";
 import SessionNotice from "./SessionNotice";
+import ThemeToggle from "./ThemeToggle";
 import { requireCleanerSession } from "@/src/lib/auth";
-import {
-  CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
-  HomeIcon,
-  LogoutIcon,
-  OrdersIcon,
-  SettingsIcon,
-  SparkleIcon,
-} from "@/src/components/ui/icons";
+import { CalendarIcon, OrdersIcon, SettingsIcon } from "./ui/icons";
 
 export type NavKey = "dashboard" | "calendar" | "orders" | "settings";
-
-export type ShellProfile = {
-  name: string;
-  initials: string;
-  meta: string;
-};
-
-type NavItem = {
-  key: NavKey;
-  label: string;
-  href: string;
-  Icon: (props: { className?: string }) => ReactNode;
-};
-
-const navItems: NavItem[] = [
-  { key: "dashboard", label: "Home", href: "/", Icon: HomeIcon },
-  { key: "calendar", label: "Calendar", href: "/calendar", Icon: CalendarIcon },
-  { key: "orders", label: "Orders", href: "/orders", Icon: OrdersIcon },
-  { key: "settings", label: "Settings", href: "/settings", Icon: SettingsIcon },
+export type ShellProfile = { name: string; initials: string; meta: string };
+const navItems = [
+  {key: "orders", label: "Requests", href: "/", Icon: OrdersIcon},
+  {key: "calendar", label: "Schedule", href: "/calendar", Icon: CalendarIcon},
+  {key: "settings", label: "Settings", href: "/settings", Icon: SettingsIcon},
 ];
 
-function getInitials(name: string) {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "C"
-  );
+export function Brand() {
+  return <Link href="/" className="brand" aria-label="Yoshida home">
+    <Image src="/brand/company-mark.svg" width={36} height={36} alt="" />
+    <span>yoshida</span>
+  </Link>;
 }
 
-function Brand() {
-  return (
-    <Link
-      href="/"
-      className="flex items-center gap-2.5 rounded-control px-2 py-1.5 transition hover:bg-fill-2"
-    >
-      <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-accent text-white shadow-sm">
-        <SparkleIcon className="h-5 w-5" />
-      </span>
-      <span className="text-[17px] font-semibold tracking-tight text-label">
-        Yoshida
-      </span>
-    </Link>
-  );
+function Navigation({active, mobile = false}: {active: NavKey; mobile?: boolean}) {
+  return <nav className={mobile ? "mobiletabs" : "workspace-nav"} aria-label={mobile ? "Mobile navigation" : "Main navigation"}>
+    {navItems.map(({key, label, href, Icon}) => <Link key={key} href={href}
+      aria-current={(active === "dashboard" ? "orders" : active) === key ? "page" : undefined}>
+      <Icon className="h-5 w-5" /><span>{label}</span>
+    </Link>)}
+  </nav>;
 }
 
-function ProfileFooter({ profile }: { profile: ShellProfile }) {
-  return (
-    <div className="mt-auto">
-      <div className="hairline mx-2 mb-2" />
-      <Link
-        href="/settings"
-        className="flex items-center gap-3 rounded-control px-2 py-2 transition hover:bg-fill-2"
-      >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-[13px] font-semibold text-label">
-          {profile.initials}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] font-semibold text-label">
-            {profile.name}
-          </span>
-          <span className="block truncate text-[12px] text-secondary">
-            {profile.meta}
-          </span>
-        </span>
-        <ChevronRight className="h-4 w-4 shrink-0 text-tertiary" />
-      </Link>
-      <LogoutForm>
-        <button
-          type="submit"
-          className="mt-0.5 flex w-full items-center gap-3 rounded-control px-2 py-2 text-[14px] font-medium text-secondary transition hover:bg-fill-2 hover:text-label"
-        >
-          <span className="grid h-9 w-9 shrink-0 place-items-center">
-            <LogoutIcon className="h-5 w-5" />
-          </span>
-          Log out
-        </button>
-      </LogoutForm>
-    </div>
-  );
-}
+type FrameProps = { active: NavKey; title: string; subtitle?: ReactNode; actions?: ReactNode; backHref?: string; children: ReactNode };
 
-function Sidebar({
-  active,
-  profile,
-}: {
-  active: NavKey;
-  profile: ShellProfile;
-}) {
-  return (
-    <aside className="material sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col gap-1 border-r border-separator px-3 py-4 md:flex">
+export function AppFrame({active, title, subtitle, actions, backHref, profile, children}: FrameProps & {profile: ShellProfile}) {
+  return <div className="workspace-shell">
+    <a className="skip-link" href="#main">Skip to content</a>
+    <aside className="workspace-sidebar">
       <Brand />
-      <nav className="mt-4 flex flex-col gap-0.5">
-        {navItems.map(({ key, label, href, Icon }) => {
-          const isActive = key === active;
-          return (
-            <Link
-              key={key}
-              href={href}
-              aria-current={isActive ? "page" : undefined}
-              className={`flex items-center gap-3 rounded-control px-2.5 py-2 text-[15px] font-medium transition ${
-                isActive
-                  ? "bg-accent-soft text-accent"
-                  : "text-label hover:bg-fill-2"
-              }`}
-            >
-              <Icon className="h-[22px] w-[22px]" />
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
-      <ProfileFooter profile={profile} />
-    </aside>
-  );
-}
-
-function BottomTabBar({ active }: { active: NavKey }) {
-  return (
-    <nav className="material fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around border-t border-separator pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1.5 md:hidden">
-      {navItems.map(({ key, label, href, Icon }) => {
-        const isActive = key === active;
-        return (
-          <Link
-            key={key}
-            href={href}
-            aria-current={isActive ? "page" : undefined}
-            className={`flex flex-1 flex-col items-center gap-1 py-1 text-[10px] font-medium transition ${
-              isActive ? "text-accent" : "text-secondary"
-            }`}
-          >
-            <Icon className="h-[26px] w-[26px]" />
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
-
-/**
- * Pure visual frame: frosted left sidebar on desktop, iOS bottom tab bar on
- * mobile, translucent toolbar above the page. Takes its profile data as a prop
- * so it can render without a session (e.g. in previews).
- */
-export function AppFrame({
-  active,
-  title,
-  subtitle,
-  actions,
-  backHref,
-  profile,
-  children,
-}: {
-  active: NavKey;
-  title: string;
-  subtitle?: ReactNode;
-  actions?: ReactNode;
-  backHref?: string;
-  profile: ShellProfile;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex min-h-screen bg-canvas">
-      <Sidebar active={active} profile={profile} />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="material sticky top-0 z-20 flex h-14 min-w-0 items-center gap-2 border-b border-separator px-4 sm:px-6">
-          {backHref ? (
-            <Link
-              href={backHref}
-              className="-ml-1.5 flex shrink-0 items-center gap-0.5 rounded-control py-1 pl-1 pr-2 text-[15px] font-medium text-accent transition hover:bg-accent-soft"
-            >
-              <ChevronLeft className="h-5 w-5" />
-              Back
-            </Link>
-          ) : null}
-          <h1 className="min-w-0 flex-1 truncate text-[17px] font-semibold tracking-tight text-label">
-            {title}
-          </h1>
-          {actions ? (
-            <div className="flex shrink-0 items-center gap-2">{actions}</div>
-          ) : null}
-        </header>
-
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-6 sm:px-6 md:pb-12 lg:px-8">
-          {subtitle ? (
-            <p className="mb-6 max-w-2xl text-[15px] leading-6 text-secondary">
-              {subtitle}
-            </p>
-          ) : null}
-          {children}
-        </main>
+      <div className="workspace-label"><strong>My workspace</strong><span>Independent cleaner</span></div>
+      <Navigation active={active} />
+      <div className="sidebar-bottom">
+        <div className="brand-note" aria-hidden="true"><Image src="/brand/company-art.svg" width={178} height={123} alt="" priority /><p>A little help.<br />A lighter day.</p></div>
+        <ThemeToggle />
+        <div className="profile"><span className="avatar">{profile.initials}</span><div><strong>{profile.name}</strong><small>{profile.meta}</small></div></div>
+        <LogoutForm><button type="submit" className="logout-button">Log out</button></LogoutForm>
       </div>
-
-      <BottomTabBar active={active} />
+    </aside>
+    <div className="workspace-content">
+      <header className="mobiletop"><Brand /><ThemeToggle /></header>
+      <div className="workspace-topbar"><span>Hello, {profile.name}</span><span aria-hidden="true">›</span><span>{title}</span></div>
+      <main id="main" tabIndex={-1}>
+        {backHref ? <Link className="back-link" href={backHref}>← Back to requests</Link> : null}
+        <header className="pagehead"><div><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</div>{actions}</header>
+        {children}
+      </main>
     </div>
-  );
+    <Navigation active={active} mobile />
+  </div>;
 }
 
-/**
- * App frame wired to the cleaner session — fetches the profile for the sidebar
- * and renders {@link AppFrame}.
- */
-export default async function AppShell({
-  active,
-  title,
-  subtitle,
-  actions,
-  backHref,
-  children,
-}: {
-  active: NavKey;
-  title: string;
-  subtitle?: ReactNode;
-  actions?: ReactNode;
-  backHref?: string;
-  children: ReactNode;
-}) {
+export default async function AppShell(props: FrameProps) {
   const session = await requireCleanerSession();
   const name = session.cleanerName || "Cleaner";
-
-  return (
-    <AppFrame
-      active={active}
-      title={title}
-      subtitle={subtitle}
-      actions={actions}
-      backHref={backHref}
-      profile={{
-        name,
-        initials: getInitials(name),
-        meta: session.cleanerEmail,
-      }}
-    >
-      <SessionNotice token={session.token} cleanerId={session.cleanerId} />
-      {children}
-    </AppFrame>
-  );
+  return <AppFrame {...props} profile={{name, initials:name.split(/\s+/).slice(0,2).map(part => part[0]).join(""), meta:session.cleanerEmail}}>
+    <SessionNotice token={session.token} cleanerId={session.cleanerId} />{props.children}
+  </AppFrame>;
 }

@@ -14,9 +14,9 @@ export default function BookingReadStatus({state, partial = []}: {
     : partial.length ? `Review incomplete: ${partial.join(", ")} could not be loaded.`
     : pending ? data ? "Refreshing bookings…" : "Loading bookings…"
     : sync === "live" ? "Live" : "Live updates disconnected. Showing the last successful read.";
-  return <div className="mb-5 rounded-group bg-surface p-4">
+  return <div className={`read-status ${error || partial.length ? "read-warning" : ""}`}>
     <p role="status" aria-live="polite" aria-atomic="true">{message}
-      {updatedAt ? <span className="ml-2 text-secondary">Last updated {updatedAt.toLocaleTimeString("en-GB")}</span> : null}
+      {updatedAt ? <span className="ml-2 text-secondary">Last updated {updatedAt.toLocaleTimeString("en-GB", {timeZone:"Europe/Berlin"})}</span> : null}
     </p>
     {auth ? <Link className={buttonClass("filled", "sm")} href="/login">Sign in again</Link>
       : <button className={buttonClass("gray", "sm")} type="button" aria-disabled={pending} onClick={() => { if (!pending) retry(); }}>

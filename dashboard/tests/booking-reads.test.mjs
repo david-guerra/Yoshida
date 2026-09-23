@@ -166,3 +166,46 @@ test('Berlin gaps, ambiguous times and conflicting offsets block Confirm', () =>
     assert.equal(mapBooking(record).canConfirm,false,time);
   }
 });
+
+test('inbox search reaches later pages and separates unanswered requests from history', async () => {
+  const {createBookingReader} = await import('../src/lib/orders.ts');
+  const bookings = Array.from({length:31},(_,i)=>({id:`b${i}`,status:'requested',created:`2026-09-${String(i%20+1).padStart(2,'0')}`,expand:{client:{name:i===30?'Later page client':`Client ${i}`}}}));
+  bookings.push({id:'declined',status:'declined'}, {id:'confirmed',status:'confirmed',start_time:'2099-01-01T09:00:00Z',end_time:'2099-01-01T11:00:00Z'});
+  const reader=createBookingReader({baseUrl:'http://example.test',token:'token',cleanerId:'owner',fetch:async url=>{
+    const u=new URL(url);
+    if(u.pathname.endsWith('auth-refresh'))return Response.json({});
+    if(u.pathname.includes('/cleaners/'))return Response.json({items:[{id:'owner'}],page:1,totalPages:1,totalItems:1});
+    const page=Number(u.searchParams.get('page'));
+    return Response.json({items:bookings.slice((page-1)*30,page*30),page,totalPages:2,totalItems:33});
+  }});
+  const search=await reader.list({kind:'inbox',view:'review',search:'later PAGE',page:1});
+  assert.deepEqual(search.orders.map(o=>o.orderId),['b30']);
+  assert.deepEqual(search.counts,{review:31,upcoming:1,history:1});
+  const history=await reader.list({kind:'inbox',view:'history',page:1});
+  assert.deepEqual(history.orders.map(o=>o.orderId),['declined']);
+  const last=await reader.list({kind:'inbox',view:'review',page:999});
+  assert.equal(last.page,last.totalPages);
+  assert.ok(last.orders.length>0);
+});
+
+test('month includes complete edge weeks and Berlin DST transitions', async () => {
+  const {calendarMonth,monthDays} = await import('../src/lib/bookingCalendar.ts');
+  assert.deepEqual(calendarMonth('2026-03-15'),{from:'2026-02-28T23:00:00.000Z',to:'2026-04-04T22:00:00.000Z'});
+  assert.equal(monthDays('2026-03-15').length,35);
+  assert.equal(monthDays('2026-08-01').length,42);
+});
+
+test('review exposes both original and translated notes without inventing a translation', async () => {
+  const {createBookingReader}=await import('../src/lib/orders.ts');
+  const reader=createBookingReader({baseUrl:'http://example.test',token:'token',cleanerId:'owner',fetch:async url=>{
+    const path=new URL(url).pathname;
+    if(path.endsWith('auth-refresh'))return Response.json({});
+    if(path.includes('/cleaners/'))return Response.json({items:[{id:'owner'}],page:1,totalPages:1,totalItems:1});
+    if(path.includes('/bookings/'))return Response.json({id:'b',cleaner:'owner',request_snapshot:{client:{name:'Test'},address:{street:'Test'}}});
+    return Response.json({items:[{id:'n',note:'Bitte klingeln.',note_translated:'Please ring.'},{id:'original',note:'Kein Aufzug.'}],page:1,totalPages:1,totalItems:2});
+  }});
+  const {notes}=await reader.detail('b');
+  assert.equal(notes[0].original,'Bitte klingeln.');
+  assert.equal(notes[0].translation,'Please ring.');
+  assert.equal(notes[1].translation,null);
+});

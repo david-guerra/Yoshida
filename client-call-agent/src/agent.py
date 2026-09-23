@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import math
 import os
 from datetime import datetime
 from pathlib import Path
@@ -14,9 +15,7 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
-    AudioConfig,
-    BackgroundAudioPlayer,
-    BuiltinAudioClip,
+    APIConnectOptions,
     JobContext,
     RunContext,
     TurnHandlingOptions,
@@ -29,6 +28,8 @@ from livekit.agents import (
 from livekit.agents.llm import ToolError
 from livekit.plugins import ai_coustics
 
+from call_server import CallServerClient, WorkerEvents
+from speech import build_tts, session_connect_options
 from submission import Submission, SubmissionRejectedError, SubmissionUnclearError
 
 logger = logging.getLogger("agent")
@@ -163,9 +164,10 @@ that point onward.
 
 ## Preloaded PocketBase Call Context
 
-This context was loaded before the agent joined the room. Treat it as the only
-stored business context for the opening path. Do not mention the preload or raw
-JSON to the caller.
+Context may arrive after the greeting. Use stored facts only when available;
+never overwrite details already reviewed with the caller. Apply late context at
+the next natural conversational boundary without another greeting or a forced
+briefing. Do not mention the preload or raw JSON to the caller.
 
 ```json
 {_format_call_context(runtime_call_context)}
@@ -184,10 +186,15 @@ def build_llm() -> Any:
 
 class PocketBaseClient:
     def __init__(
-        self, *, base_url: str | None = None, session: Any | None = None
+        self,
+        *,
+        base_url: str | None = None,
+        session: Any | None = None,
+        event: Any | None = None,
     ) -> None:
         self.base_url = (base_url or cleanvoice_pocketbase_url()).rstrip("/")
         self._session = session
+        self._event = event
 
     @property
     def session(self) -> Any:
@@ -203,43 +210,60 @@ class PocketBaseClient:
             raise ToolError(f"{action} returned an unexpected response.")
         return data
 
+    async def _lookup(self, method: str, path: str, payload=None) -> dict[str, Any]:
+        if self._event:
+            await self._event("lookup")
+        try:
+            for attempt in range(2):
+                try:
+                    kwargs = {
+                        "headers": {"ngrok-skip-browser-warning": "true"},
+                        "timeout": aiohttp.ClientTimeout(
+                            total=5, ceil_threshold=float("inf")
+                        ),
+                    }
+                    if payload is not None:
+                        kwargs["json"] = payload
+                        kwargs["headers"]["Content-Type"] = "application/json"
+                    async with getattr(self.session, method)(
+                        f"{self.base_url}{path}", **kwargs
+                    ) as response:
+                        if response.status == 408 or response.status >= 500:
+                            raise OSError("Lookup temporarily unavailable")
+                        return await self._json_or_tool_error(response, "Lookup")
+                except (aiohttp.ClientError, TimeoutError, OSError):
+                    if attempt == 1:
+                        raise ToolError(
+                            "Die Reinigungskraft kann gerade nicht geprüft werden. Ihre Anfrage wurde noch nicht gesendet."
+                        ) from None
+                except ValueError:
+                    raise ToolError("Lookup returned an unusable response.") from None
+            raise AssertionError("unreachable")
+        finally:
+            if self._event:
+                await self._event("listening")
+
     async def identify_caller(self, caller_phone: str) -> dict[str, Any]:
-        async with self.session.post(
-            f"{self.base_url}/api/cleanvoice/identify-caller",
-            headers={
-                "ngrok-skip-browser-warning": "true",
-                "Content-Type": "application/json",
-            },
-            json={"caller_phone": caller_phone},
-        ) as response:
-            return await self._json_or_tool_error(response, "identify_caller")
+        return await self._lookup(
+            "post", "/api/cleanvoice/identify-caller", {"caller_phone": caller_phone}
+        )
 
     async def get_cleaner_briefing(self, caller_phone: str) -> dict[str, Any]:
-        encoded_phone = quote(caller_phone, safe="")
-        async with self.session.get(
-            f"{self.base_url}/api/cleanvoice/cleaner-briefing?phone={encoded_phone}",
-            headers={"ngrok-skip-browser-warning": "true"},
-        ) as response:
-            return await self._json_or_tool_error(response, "get_cleaner_briefing")
+        return await self._lookup(
+            "get",
+            f"/api/cleanvoice/cleaner-briefing?phone={quote(caller_phone, safe='')}",
+        )
 
     async def get_cleaner_preferences(self, caller_phone: str) -> dict[str, Any]:
-        encoded_phone = quote(caller_phone, safe="")
-        async with self.session.get(
-            f"{self.base_url}/api/cleanvoice/cleaner-preferences?phone={encoded_phone}",
-            headers={"ngrok-skip-browser-warning": "true"},
-        ) as response:
-            return await self._json_or_tool_error(response, "get_cleaner_preferences")
+        return await self._lookup(
+            "get",
+            f"/api/cleanvoice/cleaner-preferences?phone={quote(caller_phone, safe='')}",
+        )
 
     async def suggest_cleaner(self, booking_request: dict[str, Any]) -> dict[str, Any]:
-        async with self.session.post(
-            f"{self.base_url}/api/cleanvoice/suggest-cleaner",
-            headers={
-                "ngrok-skip-browser-warning": "true",
-                "Content-Type": "application/json",
-            },
-            json=booking_request,
-        ) as response:
-            return await self._json_or_tool_error(response, "suggest_cleaner")
+        return await self._lookup(
+            "post", "/api/cleanvoice/suggest-cleaner", booking_request
+        )
 
     async def create_booking(
         self, payload: dict[str, Any], recovery_token: str = ""
@@ -315,8 +339,15 @@ class Assistant(Agent):
         *,
         caller_phone: str | None = None,
         call_context: dict[str, Any] | None = None,
+        submission: Submission | None = None,
+        submit_client: Any | None = None,
+        lookup_client: Any | None = None,
+        event: Any | None = None,
     ) -> None:
-        self._submission = Submission()
+        self._submission = submission or Submission()
+        self._submit_client = submit_client or PocketBaseClient()
+        self._lookup_client = lookup_client or PocketBaseClient()
+        self._event = event
         super().__init__(
             # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
             # See all available models at https://docs.livekit.io/agents/models/llm/
@@ -340,7 +371,7 @@ class Assistant(Agent):
             caller_phone: The cleaner phone number in E.164 format, for example +12025550101.
         """
 
-        return await PocketBaseClient().get_cleaner_preferences(caller_phone)
+        return await self._lookup_client.get_cleaner_preferences(caller_phone)
 
     @function_tool(
         raw_schema={
@@ -378,7 +409,7 @@ class Assistant(Agent):
         await context.update(
             "Ich prüfe kurz, welche Reinigungskraft zu dieser Anfrage passt."
         )
-        return await PocketBaseClient().suggest_cleaner(booking_request)
+        return await self._lookup_client.suggest_cleaner(booking_request)
 
     @function_tool(
         raw_schema={
@@ -387,7 +418,8 @@ class Assistant(Agent):
             "description": (
                 "Create a tentative cleaning booking in PocketBase after collecting "
                 "the caller phone, optional cleaner_phone from suggest_cleaner, "
-                "cleaner_language, client, address, booking, booking_notes, "
+                "cleaner_language, client, address, booking with positive "
+                "estimated_hours, booking_notes, "
                 "and client_preferences fields."
             ),
             "parameters": {
@@ -409,101 +441,173 @@ class Assistant(Agent):
     ) -> dict[str, Any]:
         """Create a tentative cleaning booking in PocketBase."""
 
-        context.disallow_interruptions()
         payload = raw_arguments.get("payload")
         if not isinstance(payload, dict):
             raise ToolError("create_booking requires a payload object.")
-        await context.update("Ich speichere die Anfrage kurz für die Reinigungskraft.")
-        try:
-            return await self._submission.save(
-                payload, PocketBaseClient().create_booking
+        booking = payload.get("booking")
+        duration = booking.get("estimated_hours") if isinstance(booking, dict) else None
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isfinite(duration)
+            or duration <= 0
+        ):
+            raise ToolError(
+                "Die positive Dauer fehlt. Fragen Sie nach der gewünschten Dauer "
+                "in Stunden, lesen Sie die vollständige Zusammenfassung erneut vor "
+                "und holen Sie eine neue ausdrückliche Freigabe ein, bevor Sie speichern."
             )
+        context.disallow_interruptions()
+        save_task = self._submission.begin_save(
+            payload, self._submit_client.create_booking
+        )
+        try:
+            try:
+                await asyncio.wait_for(
+                    context.update(
+                        "Ich speichere die Anfrage kurz für die Reinigungskraft."
+                    ),
+                    timeout=5,
+                )
+            except Exception:
+                if self._event:
+                    await self._event("speech_error")
+            return await asyncio.shield(save_task)
         except (SubmissionRejectedError, SubmissionUnclearError) as error:
             raise ToolError(str(error)) from None
 
 
-server = AgentServer()
+server = AgentServer(shutdown_process_timeout=35)
 
 
 @server.rtc_session(agent_name="client-call-agent")
 async def my_agent(ctx: JobContext):
-    # Logging setup
-    # Add any other context you want in all log entries here
-    ctx.log_context_fields = {
-        "room": ctx.room.name,
-    }
+    ctx.log_context_fields = {"room": ctx.room.name}
     caller_phone = caller_phone_from_job_metadata(ctx.job.metadata)
+    try:
+        call = CallServerClient.from_metadata(ctx.job.metadata)
+    except ValueError:
+        logger.warning("Invalid browser call configuration")
+        ctx.shutdown("Invalid call configuration")
+        return
+    if call is not None and not await call.is_active():
+        ctx.shutdown("Call is no longer active")
+        return
 
-    # Kick off the PocketBase preload concurrently so it overlaps model warmup
-    # and the greeting instead of delaying the first spoken word.
-    preload_task = asyncio.create_task(preload_call_context(caller_phone))
-
-    tts_options = {"model": "elevenlabs/eleven_flash_v2_5", "language": "de"}
-    if elevenlabs_voice_id := os.getenv("ELEVENLABS_VOICE_ID"):
-        tts_options["voice"] = elevenlabs_voice_id
-
-    session = AgentSession(
-        stt=inference.STT(model="deepgram/nova-3", language="multi"),
-        tts=inference.TTS(**tts_options),
-        turn_handling=TurnHandlingOptions(
-            turn_detection=inference.TurnDetector(),
-        ),
-        preemptive_generation=True,
+    # LiveKit exposes the local participant only after session.start joins.
+    # Server-side status events can still be queued before that point.
+    events = WorkerEvents(call)
+    submission = (
+        Submission(
+            submission_id=call.submission_id, recovery_token=call.submission_token
+        )
+        if call
+        else Submission()
+    )
+    lookup_client = PocketBaseClient(event=events.lookup_event)
+    preload_task = asyncio.create_task(
+        preload_call_context(caller_phone, client=lookup_client)
     )
 
-    loading_context = {
-        "lookup_status": "loading",
-        "caller_phone": caller_phone,
-        "role": "unknown",
-    }
-    assistant = Assistant(caller_phone=caller_phone, call_context=loading_context)
+    providers = []
 
-    await session.start(
-        agent=assistant,
-        room=ctx.room,
-        room_options=room_io.RoomOptions(
-            audio_input=room_io.AudioInputOptions(
-                noise_cancellation=ai_coustics.audio_enhancement(
-                    model=ai_coustics.EnhancerModel.QUAIL_VF_S
+    async def shutdown():
+        preload_task.cancel()
+        await asyncio.gather(preload_task, return_exceptions=True)
+        await submission.drain()
+        await events.drain()
+        await asyncio.gather(
+            *(provider.aclose() for provider in providers), return_exceptions=True
+        )
+
+    ctx.add_shutdown_callback(shutdown)
+
+    session = None
+    try:
+        stt = inference.STT(
+            model="deepgram/nova-3",
+            language="multi",
+            conn_options=APIConnectOptions(max_retry=0, timeout=5),
+        )
+        providers.append(stt)
+        tts = build_tts()
+        providers.append(tts)
+        session = AgentSession(
+            stt=stt,
+            tts=tts,
+            turn_handling=TurnHandlingOptions(
+                turn_detection=inference.TurnDetector(
+                    conn_options=APIConnectOptions(max_retry=0, timeout=5)
+                )
+            ),
+            conn_options=session_connect_options(),
+            preemptive_generation=False,
+        )
+
+        @session.on("error")
+        def on_error(event):
+            if not getattr(event.error, "recoverable", False):
+                events.queue("speech_error")
+
+        @session.on("agent_state_changed")
+        def on_state(event):
+            if event.new_state in {"listening", "thinking", "speaking"}:
+                events.queue(event.new_state)
+
+        loading_context = {
+            "lookup_status": "loading",
+            "caller_phone": caller_phone,
+            "role": "unknown",
+        }
+        assistant = Assistant(
+            caller_phone=caller_phone,
+            call_context=loading_context,
+            submission=submission,
+            submit_client=call,
+            lookup_client=lookup_client,
+            event=events.publish,
+        )
+        if assistant.llm is not None:
+            providers.append(assistant.llm)
+        await session.start(
+            agent=assistant,
+            room=ctx.room,
+            room_options=room_io.RoomOptions(
+                audio_input=room_io.AudioInputOptions(
+                    noise_cancellation=ai_coustics.audio_enhancement(
+                        model=ai_coustics.EnhancerModel.QUAIL_VF_S
+                    ),
                 ),
             ),
-        ),
-    )
-
-    # Play LiveKit's built-in keyboard typing as a thinking sound for the full
-    # duration of any tool call (suggest_cleaner / create_booking), so the caller
-    # never hears dead air while PocketBase is queried.
-    background_audio = BackgroundAudioPlayer(
-        thinking_sound=[
-            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING, volume=0.8),
-            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING2, volume=0.7),
-        ],
-    )
-    await background_audio.start(room=ctx.room, agent_session=session)
-
-    # Greet the caller in German immediately, without waiting on PocketBase.
-    await session.generate_reply(
-        instructions=(
-            "Greet the caller in German. Say that this is the Reinigung front desk, "
-            "ask how you can help with the cleaning request, and keep it to one short sentence."
         )
-    )
-
-    # Context loaded during warmup + greeting. Fold it into the live agent.
-    call_context = await preload_task
-    await assistant.update_instructions(
-        load_caller_agent_prompt(caller_phone=caller_phone, call_context=call_context)
-    )
-
-    # A cleaner who calls in expects their briefing read. Context arrived after
-    # the greeting, so prompt the agent to read it now.
-    if call_context.get("role") == "cleaner":
+        events.bind_participant(ctx.room.local_participant)
+        if call is not None and not await call.is_active():
+            await session.aclose()
+            ctx.shutdown("Call ended during worker startup")
+            return
+        events.queue("ready")
+        # No background audio: only this assistant's speech can satisfy the
+        # browser's first-playback evidence. Context lookup never gates greeting.
         await session.generate_reply(
             instructions=(
-                "Read the cleaner briefing from the preloaded context verbatim, "
-                "in a natural spoken voice."
+                "Greet the caller in German. Say that this is the Reinigung front desk, "
+                "ask how you can help with the cleaning request, and keep it to one short sentence."
             )
         )
+        call_context = await preload_task
+        await assistant.update_instructions(
+            load_caller_agent_prompt(
+                caller_phone=caller_phone, call_context=call_context
+            )
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.warning("Speech session failed; publishing caller recovery status")
+        await events.publish("speech_error")
+        if session is not None:
+            await session.aclose()
+        ctx.shutdown("Speech unavailable")
 
 
 if __name__ == "__main__":

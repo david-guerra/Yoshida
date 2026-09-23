@@ -8,7 +8,7 @@ export default async function NewOrderPage() {
   return (
     <AppShell
       active="orders"
-      title="New order"
+      title="New request"
       backHref="/orders"
       subtitle="Review the complete request before creating one tentative booking."
     >

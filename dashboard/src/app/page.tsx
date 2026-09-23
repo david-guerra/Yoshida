@@ -6,18 +6,19 @@ import { PlusIcon } from "@/src/components/ui/icons";
 import { requireCleanerSession } from "@/src/lib/auth";
 import { getPublicPocketBaseUrl } from "@/src/lib/pocketbase";
 
+// Yoshida’s request-first workspace.
 export default async function HomePage() {
   const session = await requireCleanerSession();
 
   return (
     <AppShell
       active="dashboard"
-      title="Yoshida"
-      subtitle="Calls the voice agent has qualified, grouped by what needs you now."
+      title="Requests"
+      subtitle="A clear inbox. A good day ahead."
       actions={
         <Link className={buttonClass("filled", "sm")} href="/orders/new">
           <PlusIcon className="h-4 w-4" />
-          New order
+          New request
         </Link>
       }
     >

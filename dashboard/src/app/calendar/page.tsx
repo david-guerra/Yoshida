@@ -12,11 +12,12 @@ export default async function CalendarPage() {
   return (
     <AppShell
       active="calendar"
-      title="Calendar"
+      title="Schedule"
+      subtitle="Make room for the week ahead."
       actions={
         <Link className={buttonClass("filled", "sm")} href="/orders/new">
           <PlusIcon className="h-4 w-4" />
-          New booking
+          New request
         </Link>
       }
     >

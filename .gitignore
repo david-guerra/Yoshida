@@ -21,6 +21,8 @@ pocketbase/*.zip
 
 # private runtime data, captures, and recovery artifacts
 pb_backups/
+.call-data/
+web-caller/.call-data/
 *.db
 *.db-shm
 *.db-wal

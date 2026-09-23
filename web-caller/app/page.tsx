@@ -1,399 +1,78 @@
-"use client";
+'use client';
 
-import "@livekit/components-styles";
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+import { createCallSession, CALL_COPY, type CallReference, type CallView } from '@/lib/call-session';
+import { connectCall } from '@/lib/livekit-browser';
 
-import {
-  LiveKitRoom,
-  RoomAudioRenderer,
-  useConnectionState,
-  useIsSpeaking,
-  useLocalParticipant,
-  useRemoteParticipants,
-  useRoomContext,
-} from "@livekit/components-react";
-import { ConnectionState, ParticipantKind, RoomEvent, type Participant } from "livekit-client";
-import { useCallback, useEffect, useMemo, useState } from "react";
-
-// The browser caller and voice agent share this fixed room for the local demo.
-const ROOM_NAME = "demo-call";
-const CALLER_IDENTITY = "caller";
-const DEFAULT_CALLER_PHONE = "+491700000002";
-
-type CallState = "ready" | "connecting" | "live" | "ended";
-
-const CALL_STATE_LABELS: Record<CallState, string> = {
-  ready: "Ready",
-  connecting: "Connecting...",
-  live: "Live",
-  ended: "Ended",
-};
-
-async function ensureMicrophonePermission() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error("Microphone access is not available in this browser.");
-  }
-
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  stream.getTracks().forEach((track) => track.stop());
-}
-
-function formatCallError(err: unknown) {
-  if (
-    err instanceof DOMException &&
-    ["NotAllowedError", "PermissionDeniedError", "SecurityError"].includes(err.name)
-  ) {
-    return "Microphone permission is blocked. Allow microphone access for localhost:3000, then start the call again.";
-  }
-
-  if (err instanceof Error) {
-    return err.message;
-  }
-
-  return "Failed to start the call.";
-}
+const STORAGE_KEY='yoshida.call.v1';
+const labels:Record<CallView['call'],string>={ready:'Bereit',permission:'Mikrofon freigeben',connecting:'Verbindung wird aufgebaut',starting:'Assistent startet',conversation:'Im Gespräch',reconnecting:'Verbindung wird wiederhergestellt',ended:'Gespräch beendet'};
+const initial:CallView={call:'ready',submission:{state:'not_sent'},ended:true,audioBlocked:false,error:'',canStart:false,checking:false};
 
 export default function Home() {
-  const serverUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
-
-  const [token, setToken] = useState<string | null>(null);
-  const [callState, setCallState] = useState<CallState>("ready");
-  const [error, setError] = useState<string | null>(null);
-  const [phone, setPhone] = useState(DEFAULT_CALLER_PHONE);
-
-  const startCall = useCallback(async () => {
-    setError(null);
-
-    if (!serverUrl) {
-      setError("NEXT_PUBLIC_LIVEKIT_URL is not set. Add it to web-caller/.env.local.");
-      return;
-    }
-
-    const callerPhone = phone.trim() || DEFAULT_CALLER_PHONE;
-
-    setCallState("connecting");
+  const [state,setState]=useState(initial);
+  const session=useRef<ReturnType<typeof createCallSession>|null>(null);
+  useEffect(()=>{
+    let recovery:CallReference|null=null;
     try {
-      await ensureMicrophonePermission();
-
-      const res = await fetch(
-        `/api/token?room=${encodeURIComponent(ROOM_NAME)}&identity=${encodeURIComponent(
-          CALLER_IDENTITY,
-        )}&phone=${encodeURIComponent(callerPhone)}`,
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? `Token request failed (${res.status})`);
-      }
-      const data = (await res.json()) as { token: string };
-      setToken(data.token);
-    } catch (err) {
-      setError(formatCallError(err));
-      setCallState("ready");
-    }
-  }, [serverUrl, phone]);
-
-  const endCall = useCallback(() => {
-    setToken(null);
-    setCallState("ended");
-  }, []);
-
-  const handleConnected = useCallback(() => {
-    setCallState("live");
-  }, []);
-
-  const handleLiveKitError = useCallback((err: Error) => {
-    setError(formatCallError(err));
-    setToken(null);
-    setCallState("ready");
-  }, []);
-
-  const handleMediaDeviceFailure = useCallback((_failure?: unknown, kind?: MediaDeviceKind) => {
-    const device = kind === "audioinput" ? "microphone" : "media device";
-    setError(
-      `Microphone permission is blocked. Check ${device} permissions for localhost:3000, then start the call again.`,
-    );
-    setToken(null);
-    setCallState("ready");
-  }, []);
-
+      const value=JSON.parse(sessionStorage.getItem(STORAGE_KEY)||'null');
+      if(value && typeof value.callId==='string' && typeof value.token==='string')recovery=value;
+    } catch {queueMicrotask(()=>setState({...initial,error:'Der gespeicherte Anruf konnte nicht gelesen werden. Bitte prüfen Sie die Browsereinstellungen.'}));return;}
+    const controller=createCallSession({
+      read:()=>recovery,
+      write:reference=>sessionStorage.setItem(STORAGE_KEY,JSON.stringify(reference)),
+      reference:()=>({callId:crypto.randomUUID(),token:Array.from(crypto.getRandomValues(new Uint8Array(32)),byte=>byte.toString(16).padStart(2,'0')).join('')}),
+      acquire:async()=>{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+        return {stream,stop:()=>stream.getTracks().forEach(track=>track.stop())};
+      },
+      request:async(path,body,reference)=>{
+        const response=await fetch(path,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${reference.token}`,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(10000),cache:'no-store',keepalive:!!body});
+        if(!response.ok)throw Object.assign(new Error('Call request failed'),{status:response.status});
+        return response.json();
+      },
+      connect:connectCall,
+      schedule:(callback,delay)=>{const timer=setTimeout(callback,delay);return ()=>clearTimeout(timer);},
+    },setState);
+    session.current=controller;void controller.recover();
+    const timer=setInterval(()=>void controller.refresh(),1500);
+    const unload=()=>controller.dispose();window.addEventListener('pagehide',unload);
+    return ()=>{clearInterval(timer);window.removeEventListener('pagehide',unload);controller.dispose();session.current=null;};
+  },[]);
+  const unresolved=['saving','unclear'].includes(state.submission.state);
+  const active=!['ready','ended'].includes(state.call);
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-[#f6f7ef] p-6 text-zinc-950">
-      <div className="w-full max-w-md rounded-[2rem] border border-zinc-950/10 bg-[#fffdf8] p-6 shadow-2xl shadow-zinc-950/10">
-        <header className="mb-8 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-            Yoshida caller
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold">Cleaning service</h1>
-          <p className="mt-3 text-sm leading-6 text-zinc-600">
-            You&apos;re the German-speaking client. Start the call and talk to the AI front desk.
-          </p>
-        </header>
-
-        <div className="mb-6 grid grid-cols-2 gap-3 text-sm">
-          <div className="rounded-2xl border border-zinc-950/10 bg-zinc-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Room</p>
-            <p className="mt-1 font-semibold">{ROOM_NAME}</p>
-          </div>
-          <div className="rounded-2xl border border-zinc-950/10 bg-zinc-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Call</p>
-            <p className="mt-1 font-semibold">{CALL_STATE_LABELS[callState]}</p>
-          </div>
+    <>
+      <a className="skip-link" href="#call">Zum Anruf</a>
+      <header className="caller-header"><Link className="caller-brand" href="/" aria-label="Yoshida Startseite"><span aria-hidden="true">y</span>yoshida</Link><p>Deutsch · Browseranruf mit KI-Assistent</p></header>
+      <main className="caller-layout">
+        <section className="caller-intro"><h1>Eine Reinigung.<br />Ein Gespräch.</h1><p>Teilen Sie uns mit, wann und wo Sie Unterstützung brauchen. Die Reinigungskraft prüft anschließend Ihre Anfrage.</p><p className="muted">Bitte halten Sie Adresse, Termin und gewünschte Dauer bereit.</p></section>
+        <div>
+          <section id="call" tabIndex={-1} aria-label="Anruf" className="call-panel">
+            <div className={`voice-mark ${active ? 'active' : ''}`} aria-hidden="true">{active ? '≋' : '◌'}</div>
+            <h2 role="status">{labels[state.call]}</h2>
+            {state.call==='ready'&&<p>Starten Sie einen Anruf und erzählen Sie uns von Ihrem Reinigungswunsch.</p>}
+            {state.call==='permission'&&<p>Bitte erlauben Sie den Mikrofonzugriff im Browser. Sie können jederzeit abbrechen.</p>}
+            {['connecting','starting'].includes(state.call)&&<p>Wir bereiten das Gespräch vor. Bitte warten Sie einen Moment.</p>}
+            {state.call==='conversation'&&<p>Der Assistent hört Ihnen zu. Prüfen Sie Ihre Angaben im Gespräch, bevor die Anfrage gesendet wird.</p>}
+            {state.call==='reconnecting'&&<p>Die Verbindung ist unterbrochen. Wir versuchen, sie wiederherzustellen.</p>}
+            {state.call==='ended'&&<p>Das Gespräch ist beendet. Den Speicherstatus Ihrer Anfrage sehen Sie unten.</p>}
+            <div className="call-actions">
+              <button className="primary" disabled={!state.canStart} onClick={()=>void session.current?.start()}>{state.call==='ready'?'Anruf starten':'Neuen Anruf starten'}</button>
+              {(active||!state.ended)&&<button className="danger" onClick={()=>void session.current?.end()}>{state.call==='permission'?'Abbrechen':'Auflegen'}</button>}
+              {state.audioBlocked&&<button className="primary" onClick={()=>void session.current?.enableAudio()}>Audio aktivieren</button>}
+            </div>
+            {state.error&&<p role="alert" className="call-error">{state.error}</p>}
+            <section aria-label="Ihre Anfrage" aria-live="polite" aria-atomic="true" className={`call-receipt ${state.submission.state==='saved'?'saved':unresolved?'unclear':''}`}>
+              <h3>{state.submission.state==='saved'?'Anfrage gespeichert':state.submission.state==='saving'?'Anfrage wird gespeichert':unresolved?'Speicherstatus unklar':'Ihre Anfrage'}</h3>
+              {state.submission.state==='saved'?<><p>Ihre Anfrage wurde gespeichert. Die Reinigungskraft muss sie noch bestätigen.</p><p><strong>Anfragenummer: {state.submission.receipt?.booking_id}</strong></p></>:state.submission.state==='rejected'?<p>Ihre Anfrage wurde nicht gespeichert. Bitte prüfen Sie die Angaben im Gespräch.</p>:unresolved?<p>{CALL_COPY.unclear}</p>:<p>Ihre Anfrage wurde noch nicht gesendet.</p>}
+              {(unresolved||!state.ended)&&<button disabled={state.checking} onClick={()=>void session.current?.refresh()}>Status prüfen</button>}
+              {unresolved&&<p>Bitte prüfen Sie diese Anfrage, bevor Sie einen neuen Anruf starten. Der Status bleibt auch nach dem Auflegen und Neuladen in diesem Tab verfügbar.</p>}
+            </section>
+          </section>
         </div>
-
-        {!token ? (
-          <div className="flex flex-col gap-3">
-            <label className="block">
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
-                Calling from
-              </span>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                disabled={callState === "connecting"}
-                placeholder={DEFAULT_CALLER_PHONE}
-                inputMode="tel"
-                className="mt-1.5 h-12 w-full rounded-2xl border border-zinc-950/10 bg-zinc-50 px-4 text-base font-medium text-zinc-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/15"
-              />
-              <span className="mt-1.5 block text-xs text-zinc-500">
-                Simulates the caller&apos;s number. The agent looks this up in
-                PocketBase — an unknown number is a new client; the cleaner&apos;s
-                own number triggers the cleaner briefing.
-              </span>
-            </label>
-            <button
-              onClick={startCall}
-              disabled={callState === "connecting"}
-              className="flex h-16 w-full items-center justify-center rounded-full bg-emerald-600 px-6 text-base font-semibold text-white transition hover:bg-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {callState === "connecting" ? "Connecting..." : "Start call"}
-            </button>
-          </div>
-        ) : (
-          <LiveKitRoom
-            serverUrl={serverUrl!}
-            token={token}
-            connect
-            audio
-            video={false}
-            onConnected={handleConnected}
-            onDisconnected={endCall}
-            onError={handleLiveKitError}
-            onMediaDeviceFailure={handleMediaDeviceFailure}
-          >
-            <RoomAudioRenderer />
-            <CallSession onEnd={endCall} />
-          </LiveKitRoom>
-        )}
-
-        {error && (
-          <p className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-700">{error}</p>
-        )}
-      </div>
-    </main>
-  );
-}
-
-const STATE_LABELS: Partial<Record<ConnectionState, { label: string; dot: string }>> = {
-  [ConnectionState.Connecting]: { label: "Connecting...", dot: "bg-amber-400 animate-pulse" },
-  [ConnectionState.Connected]: { label: "Connected", dot: "bg-emerald-400" },
-  [ConnectionState.Reconnecting]: { label: "Reconnecting...", dot: "bg-amber-400 animate-pulse" },
-  [ConnectionState.Disconnected]: { label: "Disconnected", dot: "bg-zinc-400" },
-};
-
-function isLikelyAgentParticipant(participant: Participant) {
-  const searchable = `${participant.identity} ${participant.name ?? ""}`.toLowerCase();
-
-  return (
-    participant.kind === ParticipantKind.AGENT ||
-    searchable.includes("agent") ||
-    searchable.includes("assistant") ||
-    searchable.includes("client-call-agent")
-  );
-}
-
-function CallSession({ onEnd }: { onEnd: () => void }) {
-  const room = useRoomContext();
-  const connectionState = useConnectionState();
-  const { localParticipant } = useLocalParticipant();
-  const hookRemoteParticipants = useRemoteParticipants();
-  const [roomRemoteParticipants, setRoomRemoteParticipants] = useState<Participant[]>(() =>
-    Array.from(room.remoteParticipants.values()),
-  );
-  const [muted, setMuted] = useState(false);
-
-  useEffect(() => {
-    const syncRemoteParticipants = () => {
-      setRoomRemoteParticipants(Array.from(room.remoteParticipants.values()));
-    };
-
-    syncRemoteParticipants();
-    room
-      .on(RoomEvent.ParticipantConnected, syncRemoteParticipants)
-      .on(RoomEvent.ParticipantDisconnected, syncRemoteParticipants)
-      .on(RoomEvent.ConnectionStateChanged, syncRemoteParticipants);
-
-    return () => {
-      room
-        .off(RoomEvent.ParticipantConnected, syncRemoteParticipants)
-        .off(RoomEvent.ParticipantDisconnected, syncRemoteParticipants)
-        .off(RoomEvent.ConnectionStateChanged, syncRemoteParticipants);
-    };
-  }, [room]);
-
-  const remoteParticipants = useMemo(() => {
-    const byIdentity = new Map<string, Participant>();
-    for (const participant of roomRemoteParticipants) {
-      byIdentity.set(participant.identity, participant);
-    }
-    for (const participant of hookRemoteParticipants) {
-      byIdentity.set(participant.identity, participant);
-    }
-    return Array.from(byIdentity.values());
-  }, [hookRemoteParticipants, roomRemoteParticipants]);
-
-  const agentParticipant =
-    remoteParticipants.find(isLikelyAgentParticipant) ??
-    (remoteParticipants.length === 1 ? remoteParticipants[0] : undefined);
-  const agentInRoom = Boolean(agentParticipant);
-  const participantStatusLabel = agentParticipant
-    ? `Agent identity: ${agentParticipant.identity}`
-    : `Remote participants: ${
-        remoteParticipants.length > 0 ? remoteParticipants.map((p) => p.identity).join(", ") : "none"
-      }`;
-
-  const toggleMute = useCallback(async () => {
-    const nextMuted = !muted;
-    await localParticipant.setMicrophoneEnabled(!nextMuted);
-    setMuted(nextMuted);
-  }, [muted, localParticipant]);
-
-  const disconnect = useCallback(async () => {
-    await room.disconnect();
-    onEnd();
-  }, [onEnd, room]);
-
-  const status = STATE_LABELS[connectionState] ?? { label: connectionState, dot: "bg-zinc-400" };
-
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div className="rounded-2xl bg-zinc-950 px-4 py-3 text-white">
-          <div className="flex items-center gap-2">
-            <span className={`h-2.5 w-2.5 rounded-full ${status.dot}`} />
-            <span className="font-semibold">{status.label}</span>
-          </div>
-          <p className="mt-1 text-xs text-zinc-300">Caller mic is {muted ? "muted" : "open"}</p>
-        </div>
-        <div className="rounded-2xl border border-zinc-950/10 bg-zinc-50 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                agentInRoom ? "bg-emerald-500" : "bg-amber-400 animate-pulse"
-              }`}
-            />
-            <span className="font-semibold">{agentInRoom ? "Agent joined" : "Agent waiting"}</span>
-          </div>
-          <p className="mt-1 text-xs text-zinc-500">{participantStatusLabel}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-50 px-4 py-3">
-          <SpeakingIndicator
-            participant={localParticipant}
-            label="You"
-            activeLabel="Speaking"
-            idleLabel={muted ? "Muted" : "Listening"}
-            activeClassName="bg-emerald-500 shadow-emerald-500/40"
-            idleClassName={muted ? "bg-zinc-400" : "bg-emerald-200"}
-          />
-        </div>
-        <div className="rounded-2xl border border-sky-500/20 bg-sky-50 px-4 py-3">
-          {agentParticipant ? (
-            <SpeakingIndicator
-              participant={agentParticipant}
-              label="Agent"
-              activeLabel="Speaking"
-              idleLabel="Listening"
-              activeClassName="bg-sky-500 shadow-sky-500/40"
-              idleClassName="bg-sky-200"
-            />
-          ) : (
-            <IdleSpeakerIndicator label="Agent" stateLabel="Waiting" dotClassName="bg-zinc-300" />
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-center gap-3">
-        <button
-          onClick={toggleMute}
-          className={`h-14 flex-1 rounded-full px-5 text-sm font-semibold transition focus:outline-none focus:ring-4 ${
-            muted
-              ? "bg-amber-500 text-zinc-950 hover:bg-amber-400 focus:ring-amber-500/20"
-              : "bg-zinc-950 text-white hover:bg-zinc-800 focus:ring-zinc-950/20"
-          }`}
-        >
-          {muted ? "Unmute" : "Mute"}
-        </button>
-        <button
-          onClick={disconnect}
-          className="h-14 flex-1 rounded-full bg-red-500 px-5 text-sm font-semibold text-white transition hover:bg-red-400 focus:outline-none focus:ring-4 focus:ring-red-500/20"
-        >
-          End call
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SpeakingIndicator({
-  participant,
-  label,
-  activeLabel,
-  idleLabel,
-  activeClassName,
-  idleClassName,
-}: {
-  participant: Participant;
-  label: string;
-  activeLabel: string;
-  idleLabel: string;
-  activeClassName: string;
-  idleClassName: string;
-}) {
-  const isSpeaking = useIsSpeaking(participant);
-
-  return (
-    <div className="flex items-center gap-2">
-      <span
-        className={`h-3 w-3 rounded-full shadow-lg transition ${
-          isSpeaking ? `${activeClassName} animate-pulse` : idleClassName
-        }`}
-      />
-      <div>
-        <p className="font-semibold">{label}</p>
-        <p className="text-xs text-zinc-500">{isSpeaking ? activeLabel : idleLabel}</p>
-      </div>
-    </div>
-  );
-}
-
-function IdleSpeakerIndicator({
-  label,
-  stateLabel,
-  dotClassName,
-}: {
-  label: string;
-  stateLabel: string;
-  dotClassName: string;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className={`h-3 w-3 rounded-full ${dotClassName}`} />
-      <div>
-        <p className="font-semibold">{label}</p>
-        <p className="text-xs text-zinc-500">{stateLabel}</p>
-      </div>
-    </div>
+      </main>
+      <footer className="caller-footer">Lokale Demonstration mit fiktiven Kontaktdaten. Yoshida von David Guerra, lishiiChan und younaorg.</footer>
+    </>
   );
 }

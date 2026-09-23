@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { buttonClass } from "@/src/components/ui/Button";
+import { bookingDecisionUi } from "@/src/lib/bookingDecisionUi";
 import {
   authoritativeConflictStatus,
   canAttemptDecision,
@@ -17,7 +18,7 @@ function normalizedStatus(status: string) {
 export default function BookingDecisionControls({
   bookingId,
   initialStatus,
-  reviewComplete = true, canConfirm = true, canDecline = true, onRefresh,
+  reviewComplete = true, canConfirm = true, canDecline = true, onRefresh, onDecision, returnToInbox = false,
 }: {
   bookingId: string;
   initialStatus: string;
@@ -25,6 +26,8 @@ export default function BookingDecisionControls({
   canConfirm?: boolean;
   canDecline?: boolean;
   onRefresh?: () => void;
+  onDecision?: (message: string) => void;
+  returnToInbox?: boolean;
 }) {
   const router = useRouter();
   const refresh = onRefresh ?? (() => router.refresh());
@@ -60,7 +63,9 @@ export default function BookingDecisionControls({
       });
       setUncertainDecision(null);
       setMessage(`Booking ${result.booking_status}.`);
-      refresh();
+      onDecision?.(`Request ${result.booking_status}. The decision has been saved.`);
+      if (returnToInbox) router.push(bookingDecisionUi[decision].inboxPath);
+      else refresh();
     } catch (caught) {
       const actualStatus = authoritativeConflictStatus(caught, bookingId);
       if (actualStatus) {
@@ -86,14 +91,14 @@ export default function BookingDecisionControls({
   };
 
   return (
-    <div className="mb-6 rounded-card bg-surface p-5 shadow-card sm:p-6">
+    <div className="decision-controls">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-[15px] font-semibold text-label">Booking decision</h2>
           <p className="mt-1 text-[14px] text-secondary">
             {decided
               ? `Persisted status: ${status}.`
-              : "Confirm or decline this requested booking."}
+              : "This request is tentative until you confirm it. Confirmation does not establish a price."}
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -139,14 +144,10 @@ export default function BookingDecisionControls({
           </button>
         </div>
       </div>
-      {message ? (
-        <p
-          aria-live="polite"
-          className={`mt-4 text-[14px] font-medium ${failed ? "text-red-ink" : "text-green-ink"}`}
-        >
-          {message}
-        </p>
-      ) : null}
+      <p role="status" aria-live="polite" aria-atomic="true"
+        className={`mt-4 text-[14px] font-medium ${failed ? "text-red-ink" : "text-green-ink"}`}>
+        {pending ? bookingDecisionUi[pending].pendingAnnouncement : message}
+      </p>
     </div>
   );
 }

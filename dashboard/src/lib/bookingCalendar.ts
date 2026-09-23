@@ -38,3 +38,25 @@ export function calendarWeek(day: string) {
   const days = weekDays(day);
   return {from:berlinMidnight(days[0]), to:berlinMidnight(shiftDay(days[6],1))};
 }
+
+export function monthDays(day: string) {
+  const first = day.slice(0, 7) + "-01";
+  const next = new Date(first + "T12:00:00Z");
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  const last = shiftDay(next.toISOString().slice(0, 10), -1);
+  const from = weekDays(first)[0];
+  const to = weekDays(last)[6];
+  const count = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1;
+  return Array.from({length: count}, (_, index) => shiftDay(from, index));
+}
+
+export function calendarMonth(day: string) {
+  const days = monthDays(day);
+  return {from: berlinMidnight(days[0]), to: berlinMidnight(shiftDay(days.at(-1)!, 1))};
+}
+
+export function shiftMonth(day: string, offset: number) {
+  const date = new Date(day.slice(0, 7) + "-01T12:00:00Z");
+  date.setUTCMonth(date.getUTCMonth() + offset);
+  return date.toISOString().slice(0, 10);
+}
