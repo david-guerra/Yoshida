@@ -4,11 +4,15 @@
 
 **Built by:** [@david-guerra](https://github.com/david-guerra) · [@lishiiChan](https://github.com/lishiiChan) · [@younaorg](https://github.com/younaorg)
 
-[Watch the silent illustrated demo](docs/media/yoshida-silent-demo.mp4) · [See the current app](docs/showcase.md#application-gallery) · [Read the demo evidence](docs/integrated-acceptance-verification.md#demo-acceptance-and-formal-limits) · [Run it locally](#run-locally)
+[See the current app](docs/showcase.md#application-gallery) · [Read the demo evidence](docs/integrated-acceptance-verification.md#demo-acceptance-and-formal-limits) · [Run it locally](#run-locally)
 
-<img src="docs/media/cleaner-confirmed.jpg" alt="Yoshida cleaner dashboard showing a confirmed request from a fictional German voice-agent call" width="640">
+## Watch the demo
 
-*The cleaner's dashboard after a fictional German conversation through the browser simulator. [More screens and capture notes](docs/showcase.md#application-gallery). The image shows a persisted result, not live speech.*
+<a href="docs/media/yoshida-silent-demo.mp4"><img src="docs/media/yoshida-video-preview.jpg" alt="Play the silent Yoshida demo: a new booking arrives in the cleaner dashboard" width="640"></a>
+
+**[▶ Watch the 58-second silent video](docs/media/yoshida-silent-demo.mp4)** · [Timed subtitles (WebVTT)](docs/media/yoshida-silent-demo.vtt)
+
+The animated booking and cleaner decision are an illustrative replay using fictional data, with no voice track. The ending shows an [actual app capture](docs/showcase.md#persisted-owner-decisions-from-the-spoken-calls) from the verified local demo.
 
 **What works today:** In a supervised local demo, two separate German conversations with the voice agent created persisted requests. The cleaner confirmed one and declined the other. Repeatability and accessibility checks remain under [#40](https://github.com/david-guerra/Yoshida/issues/40).
 
