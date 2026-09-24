@@ -33,6 +33,7 @@ transcripts/
 *.mp3
 *.m4a
 *.mp4
+!docs/media/yoshida-silent-demo.mp4
 *.webm
 *.bundle
 *.pem
