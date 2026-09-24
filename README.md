@@ -1,6 +1,6 @@
 # Yoshida
 
-**A German-speaking voice agent for independent cleaners.** Yoshida gathers a cleaning request by voice, checks the cleaner's context, repeats the details for the caller's approval, and saves a tentative booking. The cleaner reviews it in English and confirms or declines it. The current browser caller simulates the intended phone entry point for local development; telephone calls are not connected yet. Built as a team hackathon prototype by [David Guerra](https://github.com/david-guerra), [lishiiChan](https://github.com/lishiiChan), and [younaorg](https://github.com/younaorg).
+**A German-speaking voice agent for independent cleaners.** Yoshida gathers a cleaning request by voice, checks the cleaner's context, repeats the details for the caller's approval, and saves a tentative booking. The cleaner reviews it in English and confirms or declines it. The current browser caller simulates the intended phone entry point for local development; telephone calls are not connected yet.
 
 | Current interface | At a glance |
 | --- | --- |
@@ -78,12 +78,6 @@ flowchart LR
 
 The dashboard never joins the audio room. The browser is a development stand-in for the eventual phone channel; a phone integration would need its own secure call entry and an equivalent path for submission and recovery. [Backend contract](docs/backend-contract.md) describes transactions, authorization, time zones, and recovery. [The gallery](docs/showcase.md#application-gallery) shows current interfaces with fictional persisted records and labels reconstructed or staged states.
 
-## Team and provenance
-
-Yoshida is the shared work of [David Guerra](https://github.com/david-guerra), [lishiiChan](https://github.com/lishiiChan), and [younaorg](https://github.com/younaorg) for the telli × LiveKit hackathon. Its name was chosen from the teammates' names. David's later commits in this repository integrated the booking submission and owner-decision contract, browser receipt recovery, cleaner reads and UI, and the local verification harness. The original hackathon work remains credited to the team; no new teammate-specific roles are assigned here.
-
-The Python worker began from [LiveKit's agent starter](https://github.com/livekit-examples/agent-starter-python), and both frontends began from Next.js scaffolds. The conversation rules, booking integration, caller flow, and cleaner experience are project-specific work. See [MIT license](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).
-
 ## Limitations and boundaries
 
 - The browser simulator has no customer account or public admission controls. Its call ledger is local to one instance. Backend lookup and briefing routes are unauthenticated and lack rate limits. Run the stack on loopback with disposable data.
@@ -92,4 +86,4 @@ The Python worker began from [LiveKit's agent starter](https://github.com/liveki
 - [Formal #40 acceptance](docs/integrated-acceptance-verification.md#demo-acceptance-and-formal-limits) still lacks a repeated two-call decision run on the final candidate and several accessibility observations. A static screenshot cannot establish speech quality.
 - A public synthetic demo would need a separate implementation and verification of the [#32 internet-access gate](https://github.com/david-guerra/Yoshida/issues/32); none is deployed. [Showcase media decision](docs/showcase.md#media-decision).
 
-[Security guidance](SECURITY.md)
+[Security guidance](SECURITY.md) · [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

@@ -1,6 +1,6 @@
 # Yoshida voice agent
 
-German-speaking Python LiveKit worker derived from the [LiveKit agent starter](https://github.com/livekit-examples/agent-starter-python). It gathers and reviews cleaning requests by voice, then submits approved requests for cleaner review. The browser caller currently simulates the intended phone entry point. The project-specific layers are the conversation rules, PocketBase context preload and booking tools, and the local voice demo flow. See the [upstream notice](../licenses/livekit-agent-starter-MIT.txt) and [team attribution](../README.md#team-and-provenance).
+German-speaking Python LiveKit worker derived from the [LiveKit agent starter](https://github.com/livekit-examples/agent-starter-python). It gathers and reviews cleaning requests by voice, then submits approved requests for cleaner review. The browser caller currently simulates the intended phone entry point. The project-specific layers are the conversation rules, PocketBase context preload and booking tools, and the local voice demo flow. See the [upstream notice](../licenses/livekit-agent-starter-MIT.txt).
 
 From this directory:
 
