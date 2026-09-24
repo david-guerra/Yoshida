@@ -67,7 +67,7 @@ On 23 September 2026, a separate local Git clone of source commit `064e71f` was 
 | Python compile of setup, launcher and verifier | Passed |
 | Launcher integration suite | First full run: 2 of 3 passed; one teardown hit a managed-host `killpg` permission error after its UI checks. A focused rerun of the two launcher tests passed. The process-cleanup test had passed in the full run. |
 
-The default Turbopack production build failed in this managed shell while trying to bind an internal port (`Operation not permitted`). Both frontends then built and typechecked with the documented `--webpack` fallback. This is a host restriction, not a successful default-build result. The last [main CI run](https://github.com/david-guerra/Yoshida/actions/runs/35841078346) passed on 23 September 2026; it predates this documentation commit. A fresh GitHub CI run for these changes is still pending publication.
+The default Turbopack production build failed in this managed shell while trying to bind an internal port (`Operation not permitted`). Both frontends then built and typechecked with the documented `--webpack` fallback. This is a host restriction, not a successful default-build result. The [#46 PR CI run](https://github.com/david-guerra/Yoshida/actions/runs/36025326740) passed all four jobs on 24 September 2026, and [main CI after the merge](https://github.com/david-guerra/Yoshida/actions/runs/36025477220) also passed. Those GitHub runs include the default frontend builds.
 
 The previous [#40 run](integrated-acceptance-verification.md#automated-evidence) remains separate speech and persistence evidence; these fresh-clone checks did not repeat a live call.
 
