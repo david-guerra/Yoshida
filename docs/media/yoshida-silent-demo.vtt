@@ -1,25 +1,28 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:05.000
-One request. From a German call to a cleaner's decision.
+00:00:00.000 --> 00:00:04.000
+A German request reaches the cleaner's workspace.
 
-00:00:05.000 --> 00:00:12.000
-A fictional caller starts in Yoshida's browser simulator.
+00:00:04.000 --> 00:00:09.000
+Today the call starts in a browser; the phone connection comes later.
 
-00:00:12.000 --> 00:00:21.000
-Yoshida gathers the address, appointment and cleaning details in German.
+00:00:09.000 --> 00:00:17.000
+A new tentative booking appears in Needs review.
 
-00:00:21.000 --> 00:00:30.000
-The caller approves the read-back before anything is saved.
+00:00:17.000 --> 00:00:24.000
+The cleaner opens the request and checks the appointment.
 
-00:00:30.000 --> 00:00:37.000
-A tentative request is saved. The cleaner still needs to decide.
+00:00:24.000 --> 00:00:35.000
+The address, service and unknown price are clear before a decision.
 
-00:00:37.000 --> 00:00:46.000
-The cleaner reviews the same request in English and confirms it.
+00:00:35.000 --> 00:00:42.000
+Confirm moves the booking to Upcoming.
 
-00:00:46.000 --> 00:00:52.000
-The confirmed booking appears in Upcoming and was checked in the backend.
+00:00:42.000 --> 00:00:49.000
+The confirmed request remains visible in the cleaner's inbox.
 
-00:00:52.000 --> 00:00:56.000
-Local prototype. Fictional data. Illustrative replay.
+00:00:49.000 --> 00:00:54.000
+It also appears in Schedule as an appointment.
+
+00:00:54.000 --> 00:00:58.000
+A real app capture shows the verified confirmed state.

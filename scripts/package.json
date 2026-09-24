@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "Local rendering tools for Yoshida showcase media",
+  "dependencies": {
+    "playwright": "1.62.1"
+  }
+}
