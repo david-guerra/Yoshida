@@ -1,7 +1,5 @@
-# Showcase media
+# Historical design reference
 
-`cleaner-dashboard-mobile-simple-mockup.png` is a historical mobile/tablet **design mockup**, not a screenshot of the application. Its names, requests, locations, and property-access notes are fictional.
+`cleaner-dashboard-mobile-simple-mockup.png` is a fictional mobile/tablet **design mockup**, not a screenshot of the application.
 
-Only synthetic data may appear in new screenshots. Do not publish actual caller recordings, transcripts, access codes, or database exports.
-
-`../docs/media/dashboard-synthetic.jpg` is an actual local dashboard capture from 2026-09-05 with three synthetic requests. It verifies the displayed UI, not a live voice call.
+The current application's synthetic captures are in the [showcase gallery](../docs/showcase.md#application-gallery). New media must use fictional data and must not expose caller recordings, transcripts, access codes, or database exports.
