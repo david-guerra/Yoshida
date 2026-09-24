@@ -1,14 +1,18 @@
 # Yoshida showcase: gallery and media decision
 
-This is a public guide to the synthetic local prototype. The [integrated acceptance record](integrated-acceptance-verification.md) documents the spoken calls and persisted checks; these still images establish only what the running application rendered. All names, addresses, phone numbers, and appointments shown are fictional.
+This is a public guide to the synthetic local voice-agent prototype. The browser caller simulates the intended phone entry point; no telephone integration exists yet. The [integrated acceptance record](integrated-acceptance-verification.md) documents the spoken calls and persisted checks; these still images establish only what the running application rendered. All names, addresses, phone numbers, and appointments shown are fictional.
 
 ## Application gallery
 
-### German caller: original tentative receipt
+The cleaner dashboard displays the requests produced by the voice agent. The browser view below is the local call simulator used to exercise that agent.
 
-![German Yoshida caller after hang-up, showing the original tentative receipt for a saved request](media/caller-receipt.jpg)
+### Persisted owner decisions from the spoken calls
 
-This current caller UI was reconstructed on 23 September 2026 from a **copy** of [#40 call A's](integrated-acceptance-verification.md#fresh-live-german-browser-run) saved ledger and PocketBase database. Its browser capability was reissued only in the disposable copy so the actual saved receipt `zhwevpk3x2cayoh` could be displayed again. The receipt remains tentative by design even though the owner later confirmed that booking. This is not a contemporaneous recording of the spoken call. No new provider call was made for this image.
+![Cleaner Upcoming tab showing Tom Beispiel's confirmed appointment](media/cleaner-confirmed.jpg)
+
+![Cleaner History tab showing David Beispiel's declined request and budget warning](media/cleaner-declined.jpg)
+
+These two records are copies of the verified fictional German calls in [#40's run](integrated-acceptance-verification.md#fresh-live-german-browser-run): `zhwevpk3x2cayoh` was confirmed and `8pgqd6bsb7rvphl` was declined by the owner. The gallery shows their persisted dashboard states after the calls, not the action being clicked live. The €21 budget was below the configured €50 minimum but did not reject the request automatically.
 
 ### English cleaner: tentative inbox and review
 
@@ -20,13 +24,11 @@ This current caller UI was reconstructed on 23 September 2026 from a **copy** of
 
 The `Mara Beispiel` request was **staged through the real manual form and backend** on a disposable copy of the acceptance database. It is a persisted tentative request, not the result of a voice call. The two review images show different scroll positions of the same drawer; no decision was taken on this staged record.
 
-### Persisted owner decisions from the spoken calls
+### German browser call simulator: original tentative receipt
 
-![Cleaner Upcoming tab showing Tom Beispiel's confirmed appointment](media/cleaner-confirmed.jpg)
+![German Yoshida caller after hang-up, showing the original tentative receipt for a saved request](media/caller-receipt.jpg)
 
-![Cleaner History tab showing David Beispiel's declined request and budget warning](media/cleaner-declined.jpg)
-
-These two records are copies of the verified fictional German calls in [#40's run](integrated-acceptance-verification.md#fresh-live-german-browser-run): `zhwevpk3x2cayoh` was confirmed and `8pgqd6bsb7rvphl` was declined by the owner. The gallery shows their persisted dashboard states after the calls, not the action being clicked live. The €21 budget was below the configured €50 minimum but did not reject the request automatically.
+This current simulator UI was reconstructed on 23 September 2026 from a **copy** of [#40 call A's](integrated-acceptance-verification.md#fresh-live-german-browser-run) saved ledger and PocketBase database. Its browser capability was reissued only in the disposable copy so the actual saved receipt `zhwevpk3x2cayoh` could be displayed again. The receipt remains tentative by design even though the owner later confirmed that booking. This is not a contemporaneous recording of the spoken call. No new provider call was made for this image.
 
 ### Narrow view
 
@@ -48,7 +50,7 @@ The same staged manual request at 375×812 shows the running mobile layout. The 
 
 **Choice for #44: publish the static gallery now.** It uses only fictional data and links each visible state to its provenance. There is no hosted demo or public caller invitation. A hosted option would first need a separate proposal and verified implementation with an owner, budget, admission model, isolation and abuse controls, data handling, and negative tests under [#32](https://github.com/david-guerra/Yoshida/issues/32). Public deployment is outside this ticket.
 
-If the team later wants sound in the portfolio, the next media task is a **captioned 45–60 second video** of the real local app: (1) 5 seconds of the German caller starting a fictional request; (2) 20 seconds of a short, edited but clearly marked conversation and explicit spoken approval; (3) 5 seconds showing the saved *tentative* receipt; (4) 15 seconds showing the matching English cleaner review and an owner decision; (5) 5 seconds showing the persisted tab after reload and a closing local-prototype label. Capture a new fictional call, verify its booking ID against the backend, provide captions and a transcript, and identify any omitted time or reconstructed screen. Do not use the old screenshots as video frames of live speech.
+If the team later wants sound in the portfolio, the next media task is a **captioned 45–60 second video** of the real local app: (1) 5 seconds of the German browser simulator starting a fictional request; (2) 20 seconds of a short, edited but clearly marked conversation with the agent and explicit spoken approval; (3) 5 seconds showing the saved *tentative* receipt; (4) 15 seconds showing the matching English cleaner review and an owner decision; (5) 5 seconds showing the persisted tab after reload and a closing local-prototype label. Capture a new fictional call, verify its booking ID against the backend, provide captions and a transcript, and identify any omitted time or reconstructed screen. Do not use the old screenshots as video frames of live speech.
 
 ## Verification
 

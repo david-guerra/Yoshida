@@ -1,6 +1,6 @@
-# Yoshida browser caller
+# Yoshida browser call simulator
 
-Next.js microphone/audio UI and caller server for a supervised local LiveKit demo. Each explicit start gets a fresh room and browser capability. The server owns LiveKit dispatch, the worker capability, the fixed submission identity, and durable receipt recovery in a private SQLite ledger.
+Next.js microphone/audio simulator and local call server for supervised testing of Yoshida's voice agent. It stands in for the intended phone channel, which has not been implemented. Each explicit start gets a fresh room and browser capability. The server owns LiveKit dispatch, the worker capability, the fixed submission identity, and durable receipt recovery in a private SQLite ledger.
 
 From this directory:
 

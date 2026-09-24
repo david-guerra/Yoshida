@@ -1,12 +1,12 @@
 # Yoshida
 
-**A German-speaking voice front desk for independent cleaners.** A caller describes a cleaning job in the browser; Yoshida saves a tentative request for the cleaner to review in English and then confirm or decline. Built as a team hackathon prototype by [David Guerra](https://github.com/david-guerra), [lishiiChan](https://github.com/lishiiChan), and [younaorg](https://github.com/younaorg).
+**A German-speaking voice agent for independent cleaners.** Yoshida gathers a cleaning request by voice, checks the cleaner's context, repeats the details for the caller's approval, and saves a tentative booking. The cleaner reviews it in English and confirms or declines it. The current browser caller simulates the intended phone entry point for local development; telephone calls are not connected yet. Built as a team hackathon prototype by [David Guerra](https://github.com/david-guerra), [lishiiChan](https://github.com/lishiiChan), and [younaorg](https://github.com/younaorg).
 
 | Current interface | At a glance |
 | --- | --- |
-| ![Yoshida caller showing the original tentative receipt for a saved request](docs/media/caller-receipt.jpg)<br>*Reconstructed from a saved fictional call after hang-up; the receipt does not update after the cleaner's decision. No live speech is pictured. [Gallery and capture notes](docs/showcase.md#application-gallery).* | **Status:** supervised, synthetic **local** demo. Two German browser calls produced distinct persisted requests; the owning cleaner confirmed one and declined the other. A later Node.js 24 call exercised receipt recovery after hang-up during saving. The user accepted this combined evidence; the stricter [#40 acceptance gate](https://github.com/david-guerra/Yoshida/issues/40) remains open.<br><br>**Components:** [German caller](web-caller/) · [voice agent](client-call-agent/) · [PocketBase backend](pocketbase/) · [English cleaner dashboard](dashboard/).<br><br>**Run and test:** [exact fresh-clone commands below](#run-locally).<br><br>**Boundary:** browser calls, one configured cleaner, fictional data, loopback services; no public hosted demo or production assurance.<br><br>**CI:** [latest checked main run passed on 23 September 2026](https://github.com/david-guerra/Yoshida/actions/runs/35841078346); this branch needs its own run after publication. |
+| ![Yoshida cleaner dashboard showing a confirmed booking created by a fictional German voice-agent call](docs/media/cleaner-confirmed.jpg)<br>*English cleaner dashboard after a fictional German voice-agent call through the browser simulator. The owner confirmed this persisted request; the image does not show live speech. [Gallery and capture notes](docs/showcase.md#application-gallery).* | **Status:** supervised, synthetic **local** demo. Two German calls through the browser simulator reached the voice agent and produced distinct persisted requests; the owning cleaner confirmed one and declined the other. The user accepted this combined evidence; the stricter [#40 acceptance gate](https://github.com/david-guerra/Yoshida/issues/40) remains open.<br><br>**Components:** [German voice agent](client-call-agent/) · [PocketBase backend](pocketbase/) · [English cleaner dashboard](dashboard/) · [browser call simulator](web-caller/).<br><br>**Run and test:** [exact fresh-clone commands below](#run-locally).<br><br>**Boundary:** one configured cleaner, fictional data, loopback services. Phone integration and a public hosted demo are not implemented.<br><br>**CI:** [latest checked main run passed on 23 September 2026](https://github.com/david-guerra/Yoshida/actions/runs/35841078346); this branch needs its own run after publication. |
 
-[Observed demo evidence and limits](docs/integrated-acceptance-verification.md#demo-acceptance-and-formal-limits). There is no telephone integration or availability matching.
+[Observed demo evidence and limits](docs/integrated-acceptance-verification.md#demo-acceptance-and-formal-limits). There is no availability matching or production privacy and security assurance.
 
 ## Run locally
 
@@ -18,10 +18,23 @@ cd Yoshida
 npm --prefix dashboard ci
 npm --prefix web-caller ci
 uv sync --directory client-call-agent --frozen --dev --python 3.12
+```
+
+For a supervised **voice-agent demo**, configure your own LiveKit project and speech providers as in [setup](docs/setup.md), then run:
+
+```sh
+uv run --directory client-call-agent --frozen python ../scripts/local_demo.py
+```
+
+This starts a new private synthetic database and both UIs on loopback, plus a local voice worker connected to your configured LiveKit project. The browser simulates an incoming call; use fictional details only. The launcher prints the addresses and a private `login.json` containing the generated cleaner password. The [runbook](docs/integrated-acceptance.md#start-a-private-stack) covers the checks and provider requirements. No phone number is connected and the app is not published.
+
+For **interface-only review** without a speech provider, use the same launcher with `--without-worker`:
+
+```sh
 uv run --directory client-call-agent --frozen python ../scripts/local_demo.py --without-worker
 ```
 
-The last command starts a new private synthetic database and both UIs on loopback, then prints their addresses. Its generated cleaner password is in the private `login.json` it names. `--without-worker` allows UI review without a speech provider; it cannot place a voice call. For an optional real browser voice demo, configure your own LiveKit project as in [setup](docs/setup.md) and [run the launcher with its worker](docs/integrated-acceptance.md#start-a-private-stack). Use fictional details only. The launcher does not publish the app.
+This shows the dashboard and browser simulator but cannot run the agent or place a voice call.
 
 From the repository root, verify the components:
 
@@ -45,15 +58,15 @@ The PocketBase HTTP suites start disposable databases and require the 0.39.4 bin
 
 ## Journey and architecture
 
-1. The caller grants microphone access before the caller server creates a private call record and unique LiveKit room.
-2. The agent gathers a German cleaning request, reads the configured cleaner's preferences, repeats the details, and asks for explicit approval.
-3. The caller server and PocketBase save one `requested` booking with a fixed submission identity. A duplicate retry returns the same tentative receipt; an uncertain result is reconciled before starting another request.
-4. The signed-in cleaner sees a realtime request, reviews the original and translated details, and persists a Confirm or Decline decision. Confirmation does not invent an agreed price.
+1. A voice entry point supplies audio and caller identity. Today the browser simulator and its local call server create the private call record and LiveKit room; a telephone entry point remains future work.
+2. The German voice agent reads the configured cleaner's context, gathers service, address, time and other details, repeats the request, and asks for explicit caller approval.
+3. The agent submits the approved request through the local call server, which coordinates a fixed submission identity and a `requested` booking in PocketBase. A duplicate retry returns the same tentative receipt; an uncertain save is reconciled before another request.
+4. The signed-in cleaner sees the request in English, reviews the original and translated details, and persists a Confirm or Decline decision. Confirmation does not invent an agreed price.
 
 ```mermaid
 flowchart LR
-    Browser[German caller UI] <-->|audio| Room[LiveKit room]
-    Browser --> Caller[Caller server + private ledger]
+    Browser[Browser call simulator] <-->|audio| Room[LiveKit room]
+    Browser --> Caller[Local call server + private ledger]
     Caller --> Room
     Room <--> Agent[Python voice agent]
     Agent --> Caller
@@ -63,7 +76,7 @@ flowchart LR
     Dashboard[English cleaner dashboard] <--> PB
 ```
 
-The dashboard never joins the audio room. [Backend contract](docs/backend-contract.md) describes transactions, authorization, time zones, and recovery. [The gallery](docs/showcase.md#application-gallery) shows the real current interfaces with fictional persisted records and labels reconstructed or staged states.
+The dashboard never joins the audio room. The browser is a development stand-in for the eventual phone channel; a phone integration would need its own secure call entry and an equivalent path for submission and recovery. [Backend contract](docs/backend-contract.md) describes transactions, authorization, time zones, and recovery. [The gallery](docs/showcase.md#application-gallery) shows current interfaces with fictional persisted records and labels reconstructed or staged states.
 
 ## Team and provenance
 
@@ -73,7 +86,7 @@ The Python worker began from [LiveKit's agent starter](https://github.com/liveki
 
 ## Limitations and boundaries
 
-- The caller has no customer account or public admission controls. The call ledger is local to one instance. Backend lookup and briefing routes are unauthenticated and lack rate limits. Run the stack on loopback with disposable data.
+- The browser simulator has no customer account or public admission controls. Its call ledger is local to one instance. Backend lookup and briefing routes are unauthenticated and lack rate limits. Run the stack on loopback with disposable data.
 - A request targets the configured active cleaner. The budget warning is informational; there is no availability, geography, or service matching guarantee. Only the owning cleaner can decide a booking.
 - Configured inference providers may receive audio, text, and tool context. Real-caller consent, retention, deletion, and approved voice use are not established. Translation quality needs native-speaker review.
 - [Formal #40 acceptance](docs/integrated-acceptance-verification.md#demo-acceptance-and-formal-limits) still lacks a repeated two-call decision run on the final candidate and several accessibility observations. A static screenshot cannot establish speech quality.
