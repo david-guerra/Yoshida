@@ -1,6 +1,6 @@
 # Yoshida showcase: gallery and media decision
 
-This is a public guide to the synthetic local voice-agent prototype. The browser caller simulates the intended phone entry point; no telephone integration exists yet. The [integrated acceptance record](integrated-acceptance-verification.md) documents the spoken calls and persisted checks; these still images establish only what the running application rendered. All names, addresses, phone numbers, and appointments shown are fictional.
+This portfolio guide shows recruiters and hiring reviewers the synthetic local voice-agent prototype. The browser caller simulates the intended phone entry point; no telephone integration exists yet. The [integrated acceptance record](integrated-acceptance-verification.md) documents the spoken calls and persisted checks; these still images establish only what the running application rendered. All names, addresses, phone numbers, and appointments shown are fictional.
 
 ## Application gallery
 
@@ -50,7 +50,7 @@ The same staged manual request at 375×812 shows the running mobile layout. The 
 
 **Choice for #44: publish the static gallery now.** It uses only fictional data and links each visible state to its provenance. There is no hosted demo or public caller invitation. A hosted option would first need a separate proposal and verified implementation with an owner, budget, admission model, isolation and abuse controls, data handling, and negative tests under [#32](https://github.com/david-guerra/Yoshida/issues/32). Public deployment is outside this ticket.
 
-If the team later wants sound in the portfolio, the next media task is a **captioned 45–60 second video** of the real local app: (1) 5 seconds of the German browser simulator starting a fictional request; (2) 20 seconds of a short, edited but clearly marked conversation with the agent and explicit spoken approval; (3) 5 seconds showing the saved *tentative* receipt; (4) 15 seconds showing the matching English cleaner review and an owner decision; (5) 5 seconds showing the persisted tab after reload and a closing local-prototype label. Capture a new fictional call, verify its booking ID against the backend, provide captions and a transcript, and identify any omitted time or reconstructed screen. Do not use the old screenshots as video frames of live speech.
+The [recruiter video follow-up #45](https://github.com/david-guerra/Yoshida/issues/45) starts after the remaining [#40 integrated demo tests](https://github.com/david-guerra/Yoshida/issues/40) are recorded. Its **captioned 45–60 second video** of the real local app should show: (1) 5 seconds of the German browser simulator starting a fictional request; (2) 20 seconds of a short, edited but clearly marked conversation with the agent and explicit spoken approval; (3) 5 seconds showing the saved *tentative* receipt; (4) 15 seconds showing the matching English cleaner review and an owner decision; (5) 5 seconds showing the persisted tab after reload and a closing local-prototype label. Capture a new fictional call, verify its booking ID against the backend, provide captions and a transcript, and identify any omitted time or reconstructed screen. Do not use the old screenshots as video frames of live speech.
 
 ## Verification
 
