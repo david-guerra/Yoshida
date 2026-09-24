@@ -2,6 +2,8 @@
 
 **Yoshida is a German-speaking voice agent for independent cleaners.** It gathers a cleaning request, reads the details back for approval, and saves a tentative booking. The cleaner reviews it in English and chooses Confirm or Decline. Today, a browser simulates the incoming call; a real phone connection is [future work](https://github.com/david-guerra/Yoshida/issues/33).
 
+**Built by:** [@david-guerra](https://github.com/david-guerra) · [@lishiiChan](https://github.com/lishiiChan) · [@younaorg](https://github.com/younaorg)
+
 [See the current app](docs/showcase.md#application-gallery) · [Read the demo evidence](docs/integrated-acceptance-verification.md#demo-acceptance-and-formal-limits) · [Run it locally](#run-locally)
 
 <img src="docs/media/cleaner-confirmed.jpg" alt="Yoshida cleaner dashboard showing a confirmed request from a fictional German voice-agent call" width="640">
