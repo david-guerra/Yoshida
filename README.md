@@ -12,7 +12,9 @@
 
 **What works today:** In a supervised local demo, two separate German conversations with the voice agent created persisted requests. The cleaner confirmed one and declined the other. Repeatability and accessibility checks remain under [#40](https://github.com/david-guerra/Yoshida/issues/40).
 
-**Prototype scope:** One configured cleaner, fictional data, and local services. There is no phone connection or public demo. [Latest main CI: passed on 23 September 2026](https://github.com/david-guerra/Yoshida/actions/runs/35841078346); this branch has not run CI yet.
+**Prototype scope:** One configured cleaner, fictional data, and local services. There is no phone connection or public demo.
+
+[![CI on main](https://github.com/david-guerra/Yoshida/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/david-guerra/Yoshida/actions/workflows/ci.yml)
 
 ## How it works
 
