@@ -8,9 +8,9 @@
 
 ## Watch the demo
 
-<a href="docs/media/yoshida-silent-demo.mp4"><img src="docs/media/yoshida-video-preview.jpg" alt="Play the silent Yoshida demo: a new booking arrives in the cleaner dashboard" width="640"></a>
+<a href="https://github.com/david-guerra/Yoshida/raw/refs/heads/main/docs/media/yoshida-silent-demo.mp4"><img src="docs/media/yoshida-video-preview.jpg" alt="Open the silent Yoshida demo MP4: a new booking arrives in the cleaner dashboard" width="640"></a>
 
-**[▶ Watch the 58-second silent video](docs/media/yoshida-silent-demo.mp4)** · [Timed subtitles (WebVTT)](docs/media/yoshida-silent-demo.vtt)
+**[▶ Open or download the 58-second silent video](https://github.com/david-guerra/Yoshida/raw/refs/heads/main/docs/media/yoshida-silent-demo.mp4)** · [Timed subtitles (WebVTT)](docs/media/yoshida-silent-demo.vtt)
 
 The animated booking and cleaner decision are an illustrative replay using fictional data, with no voice track. The ending shows an [actual app capture](docs/showcase.md#persisted-owner-decisions-from-the-spoken-calls) from the verified local demo.
 

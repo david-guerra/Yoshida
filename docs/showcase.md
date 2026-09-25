@@ -54,7 +54,7 @@ The original [recruiter video follow-up #45](https://github.com/david-guerra/Yos
 
 ### Silent illustrated video
 
-[Watch the 58-second silent video](media/yoshida-silent-demo.mp4) · [Download timed text (WebVTT)](media/yoshida-silent-demo.vtt)
+[Open or download the 58-second silent video](https://github.com/david-guerra/Yoshida/raw/refs/heads/main/docs/media/yoshida-silent-demo.mp4) · [Download timed text (WebVTT)](media/yoshida-silent-demo.vtt)
 
 This alternate #45 deliverable uses animated subtitles and an animated cleaner dashboard instead of a participant voice or a new provider call. It can be shared while #40 remains open, as a **visual explanation of the previously verified local flow**. Most of the film shows an illustrative reconstruction of the cleaner app: a tentative booking arriving in Needs review, the review drawer opening, the cleaner confirming it, and the appointment appearing in Upcoming and Schedule. The browser simulator is mentioned only as the current source of the fictional call; it is not presented as the product's long-term calling interface. The final Upcoming screen is an actual app capture made from a disposable copy of the verified #40 fictional data. That capture is not contemporaneous footage of the call or owner click. The film has no audio track and does not claim to demonstrate speech quality, a new live call, a fresh booking, or the unfinished strict #40 checks.
 
