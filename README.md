@@ -6,9 +6,13 @@
 
 [See the current app](docs/showcase.md#application-gallery) · [Read the demo evidence](docs/integrated-acceptance-verification.md#demo-acceptance-and-formal-limits) · [Run it locally](#run-locally)
 
-<img src="docs/media/cleaner-confirmed.jpg" alt="Yoshida cleaner dashboard showing a confirmed request from a fictional German voice-agent call" width="640">
+## Watch the demo
 
-*The cleaner's dashboard after a fictional German conversation through the browser simulator. [More screens and capture notes](docs/showcase.md#application-gallery). The image shows a persisted result, not live speech.*
+<a href="docs/media/yoshida-silent-demo.mp4"><img src="docs/media/yoshida-video-preview.jpg" alt="Play the silent Yoshida demo: a new booking arrives in the cleaner dashboard" width="640"></a>
+
+**[▶ Watch the 58-second silent video](docs/media/yoshida-silent-demo.mp4)** · [Timed subtitles (WebVTT)](docs/media/yoshida-silent-demo.vtt)
+
+The animated booking and cleaner decision are an illustrative replay using fictional data, with no voice track. The ending shows an [actual app capture](docs/showcase.md#persisted-owner-decisions-from-the-spoken-calls) from the verified local demo.
 
 **What works today:** In a supervised local demo, two separate German conversations with the voice agent created persisted requests. The cleaner confirmed one and declined the other. Repeatability and accessibility checks remain under [#40](https://github.com/david-guerra/Yoshida/issues/40).
 
@@ -82,7 +86,7 @@ The PocketBase HTTP suites start disposable databases and require the 0.39.4 bin
 - The browser simulator has no customer account or public admission controls. Its call ledger is local to one instance. Backend lookup and briefing routes are unauthenticated and lack rate limits. Run the stack on loopback with disposable data.
 - A request targets the configured active cleaner. The budget warning is informational; there is no availability, geography, or service matching guarantee. Only the owning cleaner can decide a booking.
 - Configured inference providers may receive audio, text, and tool context. Real-caller consent, retention, deletion, and approved voice use are not established. Translation quality needs native-speaker review.
-- [Formal #40 acceptance](docs/integrated-acceptance-verification.md#demo-acceptance-and-formal-limits) still lacks a repeated two-call decision run on the final candidate and several accessibility observations. A static screenshot cannot establish speech quality.
+- [Formal #40 acceptance](docs/integrated-acceptance-verification.md#demo-acceptance-and-formal-limits) still lacks a repeated two-call decision run on the final candidate and several accessibility observations. The stills and silent illustrated video cannot establish speech quality.
 - A public synthetic demo would need a separate implementation and verification of the [#32 internet-access gate](https://github.com/david-guerra/Yoshida/issues/32); none is deployed. [Showcase media decision](docs/showcase.md#media-decision).
 
 [Security guidance](SECURITY.md) · [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

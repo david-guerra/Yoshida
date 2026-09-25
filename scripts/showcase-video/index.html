@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1600, initial-scale=1">
+  <title>Yoshida silent showcase</title>
+  <style>
+    :root {
+      --canvas:#18151f;--surface:#231f2c;--surface2:#2b2535;--ink:#f1ebf6;
+      --muted:#b7acc3;--line:#3b3348;--accent:#c5b0f1;--accent-soft:#383044;
+      --mint:#b6dfcd;--mint-dark:#294034;--rail:#252c2a;--rail-ink:#e7f2eb;
+      --tab:#765d8d;--tab-track:#19161f;
+    }
+    *{box-sizing:border-box}
+    html,body{width:1600px;height:900px;margin:0;overflow:hidden;background:var(--canvas);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+    #stage{position:relative;width:1600px;height:900px;overflow:hidden;background:var(--canvas)}
+    #stage::before{content:"";position:absolute;inset:0;pointer-events:none;background:url('../../dashboard/public/brand/grain.svg');opacity:.32;z-index:20}
+    .app{position:absolute;inset:0 0 116px 0;display:grid;grid-template-columns:286px 1fr;overflow:hidden}
+    .sidebar{margin:18px 0 18px 18px;padding:32px 20px;border:1px solid #45514b;border-radius:28px;background:var(--rail);color:var(--rail-ink);display:flex;flex-direction:column}
+    .brand{display:flex;align-items:center;gap:13px;padding:3px 9px;font-size:38px;font-weight:850;letter-spacing:-2px}
+    .brand-mark{width:37px;height:37px;object-fit:contain}
+    .workspace{padding:53px 14px 30px;font-size:16px;font-weight:680;line-height:1.25}
+    .workspace small{display:block;margin-top:4px;color:#aec2b5;font-size:14px;font-weight:400}
+    .nav{display:grid;gap:9px}
+    .nav-item{height:57px;border-radius:14px;display:flex;align-items:center;gap:15px;padding:0 17px;font-size:17px;font-weight:630;color:var(--rail-ink)}
+    .nav-item.active{background:var(--mint);color:#243b31}
+    .nav-icon{width:25px;text-align:center;font-size:22px;font-weight:400}
+    .side-bottom{margin-top:auto;padding:0 12px 4px}
+    .side-bottom img{width:175px;height:122px;object-fit:contain;object-position:left bottom}
+    .side-bottom p{font-size:22px;line-height:1.16;font-weight:700;letter-spacing:-.7px;margin:8px 0 24px}
+    .side-bottom .profile{border-top:1px solid #506157;padding-top:17px;font-size:13px}
+    .profile strong{display:block;font-size:15px}.profile span{color:#aec2b5}
+    .content{padding:0 53px 30px 48px;min-width:0}
+    .crumb{height:101px;display:flex;align-items:center;gap:18px;color:var(--muted);font-size:14px}
+    .pagehead{display:flex;align-items:center;justify-content:space-between;margin:5px 0 25px}
+    .pagehead h1{font-size:53px;letter-spacing:-2.6px;line-height:1.04;margin:0;font-weight:790}
+    .pagehead p{margin:11px 0 0;color:var(--muted);font-size:17px}
+    .new-button{background:linear-gradient(115deg,#decfff,#c3adf5);color:#30203f;border-radius:13px;padding:16px 24px;font-size:16px;font-weight:680;box-shadow:0 9px 24px #0002}
+    .read-status{height:60px;display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:15px}
+    .live{display:flex;align-items:center;gap:10px}.live-dot{width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 5px #b6dfcd1b}
+    .refresh{padding:10px 16px;background:#31293c;border-radius:12px;color:#d8d0df;font-size:14px}
+    .collection{height:451px;border:1px solid var(--line);border-radius:23px;overflow:hidden;background:var(--surface)}
+    .collectionbar{height:83px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+    .tabs{height:47px;padding:4px;display:flex;gap:4px;background:var(--tab-track);border:1px solid var(--line);border-radius:13px}
+    .tab{min-width:126px;height:37px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:9px;padding:0 13px;font-size:14px;color:var(--muted)}
+    .tab.active{background:var(--tab);color:white;font-weight:650;box-shadow:0 3px 8px #0002}
+    .count{border-radius:5px;background:#50445d;font-size:12px;padding:1px 6px;color:#e5dced}
+    .tab.active .count{background:#514160;color:white}
+    .search{width:245px;height:44px;padding:0 15px;border-radius:11px;border:1px solid var(--line);background:#1d1923;color:var(--muted);display:flex;align-items:center;gap:10px;font-size:14px}
+    .headrow,.booking-row{display:grid;grid-template-columns:1.38fr .97fr 1fr .63fr 20px;gap:17px;align-items:center}
+    .headrow{height:47px;padding:0 26px;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}
+    .group{height:41px;padding:0 26px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-bottom:1px solid var(--line);color:#d0c5d8;font-size:13px}
+    .booking-row{position:relative;height:129px;padding:0 26px;border-bottom:1px solid var(--line);background:var(--surface);font-size:16px;transform-origin:top center}
+    .booking-row::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent);opacity:var(--row-glow,0)}
+    .person{display:flex;align-items:center;gap:15px;min-width:0}.avatar{display:grid;place-items:center;flex:none;width:47px;height:47px;border-radius:14px;background:#3b3246;font-size:14px;font-weight:650}
+    .person strong{font-size:17px}.cell small{display:block;color:var(--muted);font-size:14px;line-height:1.45;margin-top:6px}
+    .service span{display:inline-block;margin-top:4px;padding:3px 11px;border-radius:20px;background:#294034;color:#b6dfcd;font-size:12px}
+    .chevron{font-size:30px;color:var(--muted);text-align:right}
+    .empty{height:305px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center}
+    .empty img{width:112px;height:78px}.empty h2{font-size:24px;margin:12px 0 2px}.empty p{font-size:15px;color:var(--muted);margin:7px 0;max-width:340px;line-height:1.5}
+    .list-footer{height:54px;border-top:1px solid var(--line);padding:18px 26px;color:var(--muted);font-size:13px}
+    .hint{margin:16px 5px;color:var(--muted);font-size:14px}
+    .flash-ring{position:absolute;left:334px;top:449px;width:1212px;height:129px;border:2px solid var(--accent);border-radius:8px;pointer-events:none;opacity:0;filter:drop-shadow(0 0 16px #c5b0f155)}
+    .toast{position:absolute;right:65px;top:105px;z-index:15;min-width:430px;padding:18px 22px;border:1px solid #6d907a;border-radius:15px;background:#294034;box-shadow:0 18px 44px #0006;display:flex;gap:16px;align-items:center;color:#e4f7e8}
+    .toast-mark{width:31px;height:31px;border-radius:50%;background:#b6dfcd;color:#294034;display:grid;place-items:center;font-size:21px;font-weight:800;flex:none}
+    .toast strong{display:block;font-size:17px}.toast span{display:block;margin-top:3px;font-size:13px;color:#b9d5c2}
+    .veil{position:absolute;inset:0 0 116px 0;background:#09070fc2;backdrop-filter:blur(4px);z-index:11}
+    .drawer{position:absolute;right:0;top:0;bottom:116px;width:650px;background:var(--surface);border-left:1px solid var(--line);z-index:12;box-shadow:-30px 0 70px #0006;overflow:hidden}
+    .drawer-head{height:85px;padding:0 33px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);background:var(--surface2);font-size:18px;font-weight:680}
+    .drawer-close{display:flex;gap:23px;align-items:center;color:var(--muted);font-size:14px;font-weight:400}.drawer-close b{display:grid;place-items:center;width:42px;height:42px;border-radius:11px;background:#332c3c;font-size:23px;font-weight:400}
+    .drawer-body{height:calc(100% - 85px);overflow:hidden;padding:22px 35px}.drawer-body::after{content:"";display:block;height:210px}.drawer-live{font-size:14px;color:var(--muted);margin:0 0 24px}.identity{display:flex;align-items:center;gap:16px}.identity .avatar{width:53px;height:53px}.identity h2{font-size:30px;margin:0;letter-spacing:-1px}.identity small{color:var(--muted);font-size:14px}.status{margin-left:auto;padding:5px 13px;border-radius:20px;background:#403525;color:#efce8e;font-size:13px}
+    .appointment{margin-top:25px;padding:20px 22px;border-radius:14px;background:var(--accent-soft)}.appointment strong{font-size:23px}.appointment div{margin-top:7px;font-size:18px}.appointment small{display:block;margin-top:8px;color:var(--muted);font-size:13px}
+    .facts{margin-top:25px;display:grid;grid-template-columns:1fr 1fr;gap:21px 25px}.fact.wide{grid-column:1/-1}.fact small{display:block;color:var(--muted);font-size:13px;margin-bottom:6px}.fact strong{font-size:17px;font-weight:550}
+    .review-note{margin-top:26px;padding-top:20px;border-top:1px solid var(--line)}.review-note h3{margin:0 0 10px;font-size:17px}.review-note p{margin:0;color:#ded4e6;line-height:1.55;font-size:16px}
+    .drawer-actions{position:absolute;left:26px;right:26px;bottom:20px;padding:18px;background:var(--surface2);border:1px solid var(--line);border-radius:15px;box-shadow:0 -12px 30px #231f2cee}
+    .drawer-actions small{display:block;color:var(--muted);font-size:12px;margin-bottom:10px}.buttons{display:flex;gap:12px}.buttons div{flex:1;height:48px;border-radius:10px;display:grid;place-items:center;font-size:15px;font-weight:650}.decline{border:1px solid #695d6c;color:#f1c4c8}.confirm{background:#c5b0f1;color:#30203f}
+    .cursor{position:absolute;width:29px;height:39px;z-index:18;filter:drop-shadow(1px 3px 3px #0009)}.cursor svg{width:100%;height:100%}
+    .click-ring{position:absolute;z-index:17;width:80px;height:80px;border:3px solid #e3d8ff;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
+    .schedule{height:451px;border:1px solid var(--line);border-radius:23px;overflow:hidden;background:var(--surface)}
+    .schedule-head{height:80px;padding:0 26px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.schedule-head strong{font-size:22px}.schedule-head span{font-size:14px;color:var(--muted)}
+    .schedule-tabs{display:flex;gap:6px;margin-bottom:19px}.schedule-tabs span{padding:9px 21px;border-radius:9px;background:#2f2839;color:var(--muted);font-size:14px}.schedule-tabs span:first-child{background:#765d8d;color:white}
+    .daygrid{display:grid;grid-template-columns:165px 1fr;height:371px}.hourcol{border-right:1px solid var(--line);padding:31px 25px;color:var(--muted);font-size:14px;display:grid;gap:55px}.daycontent{padding:28px 35px;background:linear-gradient(180deg,#231f2c,#292332)}
+    .daycontent h3{margin:0 0 18px;font-size:18px}.event{border:1px solid #688b76;border-left:5px solid #b6dfcd;background:#294034;border-radius:13px;padding:18px 23px;width:600px;box-shadow:0 15px 30px #0002}.event strong{font-size:21px}.event p{margin:7px 0;color:#d1e8d8;font-size:16px}.event small{font-size:13px;color:#b4d3bd}
+    .source-pill{position:absolute;top:27px;right:50px;z-index:10;padding:10px 15px;border:1px solid #655775;border-radius:22px;background:#30283bdd;color:#e4d9ed;font-size:13px;backdrop-filter:blur(8px)}
+    .capture{position:absolute;inset:0 0 116px 0;background:#17131d;z-index:19;display:flex;align-items:center;justify-content:center}.capture img{width:1280px;height:720px;object-fit:contain;box-shadow:0 24px 80px #0008;border:1px solid #4f445d}.capture-tag{position:absolute;top:28px;right:48px;border-radius:20px;padding:10px 16px;background:#2b2535;color:#e8ddf0;border:1px solid #675778;font-size:14px}
+    .captionbar{position:absolute;bottom:0;left:0;right:0;height:116px;background:#121018;border-top:1px solid #51455e;z-index:25;padding:21px 64px 18px 75px;display:flex;align-items:center}
+    .captionbar::before{content:"";position:absolute;left:43px;top:28px;bottom:27px;width:4px;border-radius:2px;background:#b6dfcd}
+    .caption{font-size:30px;font-weight:670;letter-spacing:-.55px;line-height:1.15;white-space:nowrap}.caption .word{display:inline-block;margin-right:.27em;will-change:transform,opacity}.caption .current{color:#d5c3fb}
+    .provenance{position:absolute;right:65px;top:8px;color:#a99ab8;font-size:12px;letter-spacing:.1px}
+    .progress{position:absolute;left:0;right:0;bottom:0;height:5px;background:#3b3348}.progress span{display:block;height:100%;background:#b6dfcd;width:0}
+    .intro{position:absolute;inset:0 0 116px 0;background:#18151fdd;z-index:9;display:flex;flex-direction:column;justify-content:center;padding-left:345px}.intro h1{font-size:65px;letter-spacing:-3.4px;line-height:1.07;max-width:900px;margin:0}.intro p{font-size:24px;color:#d4c8dd;margin:23px 0 0}.intro .rule{width:105px;height:6px;background:#b6dfcd;border-radius:4px;margin-bottom:29px}
+  </style>
+</head>
+<body>
+<div id="stage">
+  <div class="app" id="app">
+    <aside class="sidebar">
+      <div class="brand"><img class="brand-mark" src="../../dashboard/public/brand/company-mark.svg" alt="">yoshida</div>
+      <div class="workspace">My workspace<small>Independent cleaner</small></div>
+      <div class="nav"><div class="nav-item active" id="requestsNav"><span class="nav-icon">☰</span>Requests</div><div class="nav-item" id="scheduleNav"><span class="nav-icon">▣</span>Schedule</div><div class="nav-item"><span class="nav-icon">☼</span>Settings</div></div>
+      <div class="side-bottom"><img src="../../dashboard/public/brand/company-art.svg" alt=""><p>A little help.<br>A lighter day.</p><div class="profile"><strong>Example Cleaner</strong><span>cleaner@example.test</span></div></div>
+    </aside>
+    <main class="content">
+      <div class="crumb">Hello, Example Cleaner <span>›</span> <span id="crumbPage">Requests</span></div>
+      <div class="pagehead"><div><h1 id="pageTitle">Requests</h1><p id="pageSub">A clear inbox. A good day ahead.</p></div><div class="new-button" id="newButton">＋ &nbsp;New request</div></div>
+      <div class="read-status"><div class="live"><i class="live-dot" id="liveDot"></i><span>Live</span><span>Last updated just now</span></div><span class="refresh">Refresh</span></div>
+      <section class="collection" id="requestsPage">
+        <div class="collectionbar"><div class="tabs"><div class="tab active" id="tabReview">Needs review <span class="count" id="reviewCount">0</span></div><div class="tab" id="tabUpcoming">Upcoming <span class="count" id="upcomingCount">0</span></div><div class="tab">History <span class="count">0</span></div></div><div class="search">⌕ &nbsp;Search requests</div></div>
+        <div class="headrow"><span>Client</span><span>Requested time</span><span>Service</span><span>Caller budget</span><span></span></div>
+        <div class="group" id="group"><span id="groupName">New today</span><span id="groupCount">0 on this page</span></div>
+        <div class="empty" id="empty"><img src="../../dashboard/public/brand/company-art.svg" alt=""><h2>A little room to breathe.</h2><p>New requests will appear here when they arrive.</p></div>
+        <div class="booking-row" id="bookingRow"><div class="person"><span class="avatar">TB</span><span class="cell"><strong>Tom Beispiel</strong><small>Kastanienallee 12, 10115, Berlin, DE</small></span></div><div class="cell"><strong>25 Sept 2026</strong><small>10:00–12:00</small></div><div class="cell service">Regular Cleaning<small>2 hours</small><span id="rowStatus">Confirmed</span></div><div class="cell"><strong>Not given</strong></div><div class="chevron">›</div></div>
+        <div class="list-footer" id="listFooter">0 requests · Page 1 of 1</div>
+      </section>
+      <section class="schedule" id="schedulePage"><div class="schedule-head"><strong>Friday, 25 September 2026</strong><span>Today &nbsp; ‹ &nbsp; ›</span></div><div class="daygrid"><div class="hourcol"><span>09:00</span><span>10:00</span><span>11:00</span><span>12:00</span></div><div class="daycontent"><div class="schedule-tabs"><span>Day</span><span>Week</span><span>Month</span></div><h3>1 appointment</h3><div class="event" id="scheduleEvent"><strong>Tom Beispiel</strong><p>10:00–12:00 · Regular Cleaning</p><small>Confirmed · Kastanienallee 12, Berlin</small></div></div></div></section>
+      <div class="hint" id="hint">Requests are tentative until you confirm them. All appointment times are Europe/Berlin.</div>
+    </main>
+  </div>
+  <div class="flash-ring" id="flashRing"></div>
+  <div class="toast" id="toast"><div class="toast-mark" id="toastMark">✓</div><div><strong id="toastTitle">New request received</strong><span id="toastText">Tom Beispiel · Needs review</span></div></div>
+  <div class="veil" id="veil"></div>
+  <div class="drawer" id="drawer"><div class="drawer-head">Request review <div class="drawer-close"><span>Full page</span><b>×</b></div></div><div class="drawer-body" id="drawerBody"><p class="drawer-live">Live &nbsp; Last updated just now</p><div class="identity"><span class="avatar">TB</span><div><h2>Tom Beispiel</h2><small>Fictional caller</small></div><span class="status">Requested</span></div><div class="appointment"><strong>25 Sept 2026</strong><div>10:00–12:00 · 2 hours</div><small>Saved schedule: Europe/Berlin · Tentative request</small></div><div class="facts"><div class="fact wide"><small>Full address</small><strong>Kastanienallee 12, 10115, Berlin, DE</strong></div><div class="fact"><small>Service</small><strong>Regular Cleaning</strong></div><div class="fact"><small>Caller budget</small><strong>Not given</strong></div><div class="fact"><small>Agreed price</small><strong>Not agreed</strong></div><div class="fact"><small>Duration</small><strong>2 hours</strong></div></div><div class="review-note"><h3>Call summary</h3><p>The caller requested regular cleaning for two hours on 25 September. The details were read back and approved before saving.</p></div><div class="review-note"><h3>Cleaner briefing</h3><p>Review the tentative request and decide whether to accept the appointment.</p></div></div><div class="drawer-actions" id="drawerActions"><small>Only the cleaner can make the final decision.</small><div class="buttons"><div class="decline">Decline</div><div class="confirm" id="confirmButton">Confirm request</div></div></div></div>
+  <div class="cursor" id="cursor"><svg viewBox="0 0 30 42"><path d="M3 2v32l8-9 7 14 6-3-8-14 12-2Z" fill="#fff" stroke="#18151f" stroke-width="2" stroke-linejoin="round"/></svg></div>
+  <div class="click-ring" id="clickRing"></div>
+  <div class="source-pill" id="sourcePill">Illustrative UI sequence · fictional booking</div>
+  <div class="intro" id="intro"><div class="rule"></div><h1>A new request.<br>A clear decision.</h1><p>Yoshida turns a German call into a cleaner's next action.</p></div>
+  <div class="capture" id="capture"><img src="../../docs/media/cleaner-confirmed.jpg" alt=""><div class="capture-tag">Actual app capture · copy of verified #40 data</div></div>
+  <div class="captionbar"><div class="provenance" id="provenance">Illustrative replay · fictional data</div><div class="caption" id="caption"></div><div class="progress"><span id="progress"></span></div></div>
+</div>
+<script>
+  const DURATION=58;
+  window.DURATION=DURATION;
+  window.CAPTIONS=[
+    [0,4,"A German request reaches the cleaner's workspace."],
+    [4,9,"Today the call starts in a browser; the phone connection comes later."],
+    [9,17,"A new tentative booking appears in Needs review."],
+    [17,24,"The cleaner opens the request and checks the appointment."],
+    [24,35,"The address, service and unknown price are clear before a decision."],
+    [35,42,"Confirm moves the booking to Upcoming."],
+    [42,49,"The confirmed request remains visible in the cleaner's inbox."],
+    [49,54,"It also appears in Schedule as an appointment."],
+    [54,58,"A real app capture shows the verified confirmed state."],
+  ];
+  const $=id=>document.getElementById(id);
+  const clamp=v=>Math.max(0,Math.min(1,v));
+  const ease=v=>{v=clamp(v);return v*v*(3-2*v)};
+  function opacity(id,value){$(id).style.opacity=String(clamp(value))}
+  function show(id,visible){$(id).style.display=visible?'':'none'}
+  function caption(t){
+    const [start,end,value]=window.CAPTIONS.find(([a,b])=>t>=a&&t<b)||window.CAPTIONS.at(-1);
+    const words=value.split(' '),reveal=clamp((t-start)/1.2)*words.length;
+    const active=Math.max(0,Math.min(words.length-1,Math.ceil(reveal)-1));
+    $('caption').innerHTML=words.map((word,i)=>`<span class="word${i===active?' current':''}" style="opacity:${i<Math.max(1,Math.ceil(reveal))?1:0};transform:translateY(${i<reveal?0:9}px)">${word.replaceAll('&','&amp;').replaceAll('<','&lt;')}</span>`).join('');
+  }
+  function cursor(t){
+    let x=750,y=513,visible=false;
+    if(t>=17&&t<22){const p=ease((t-17)/4);x=1230-(460*p);y=570-(60*p);visible=true}
+    if(t>=34&&t<39){const p=ease((t-34)/3);x=1060+350*p;y=507+205*p;visible=true}
+    $('cursor').style.left=`${x}px`;$('cursor').style.top=`${y}px`;
+    opacity('cursor',visible?ease((t-(t<22?17:34))/.4)*clamp((t<22?22-t:39-t)/.4):0);
+    const click=t>=37.1&&t<38.1;
+    opacity('clickRing',click?1-ease((t-37.1)/1):0);
+    $('clickRing').style.left='1425px';$('clickRing').style.top='725px';
+    $('clickRing').style.scale=String(.25+1.2*ease((t-37.1)/1));
+  }
+  window.render=function(t){
+    t=Math.max(0,Math.min(DURATION-.001,t));
+    caption(t);$('progress').style.width=`${100*t/DURATION}%`;
+    const introOut=1-ease((t-2.5)/.8);opacity('intro',introOut);show('intro',t<3.4);
+    const arrived=ease((t-9.2)/1.35),confirmed=t>=40,upcoming=t>=40.8,schedule=t>=49;
+    const row=t>=9.2;
+    show('empty',!row);show('bookingRow',row);
+    $('bookingRow').style.opacity=String(arrived);
+    $('bookingRow').style.transform=`translateY(${Math.round(-42*(1-arrived))}px) scale(${(.97+.03*arrived).toFixed(3)})`;
+    $('bookingRow').style.setProperty('--row-glow',String(Math.max(0,1-ease((t-11.2)/2.6))));
+    $('reviewCount').textContent=upcoming?'0':row?'1':'0';$('upcomingCount').textContent=upcoming?'1':'0';
+    $('tabReview').classList.toggle('active',!upcoming);$('tabUpcoming').classList.toggle('active',upcoming);
+    $('rowStatus').style.display=upcoming?'inline-block':'none';
+    $('groupName').textContent=upcoming?'Confirmed appointments':'New today';
+    $('groupCount').textContent=row?'1 on this page':'0 on this page';
+    $('listFooter').textContent=row?'1 request · Page 1 of 1':'0 requests · Page 1 of 1';
+    opacity('flashRing',t>=9.1&&t<12?Math.sin(Math.PI*clamp((t-9.1)/2.9))*.7:0);
+    $('liveDot').style.boxShadow=t>=9&&t<12?`0 0 0 ${Math.round(5+20*ease((t-9)/3))}px #b6dfcd${Math.round(60*(1-ease((t-9)/3))).toString(16).padStart(2,'0')}`:'0 0 0 5px #b6dfcd1b';
+    const toastIn=t>=9&&t<14?ease((t-9)/.55)*(1-ease((t-13.3)/.65)):t>=40&&t<45?ease((t-40)/.5)*(1-ease((t-44.2)/.7)):0;
+    $('toast').style.opacity=String(toastIn);$('toast').style.transform=`translateY(${Math.round(-19*(1-toastIn))}px) scale(${(.96+.04*toastIn).toFixed(3)})`;
+    $('toastTitle').textContent=confirmed?'Request confirmed':'New request received';
+    $('toastText').textContent=confirmed?'Tom Beispiel · Upcoming':'Tom Beispiel · Needs review';
+    $('toastMark').textContent=confirmed?'✓':'↓';
+    const drawerIn=ease((t-21)/.6)*(1-ease((t-39.4)/.7));
+    opacity('veil',drawerIn);show('veil',drawerIn>.001);show('drawer',drawerIn>.001);
+    $('drawer').style.transform=`translateX(${Math.round(650*(1-drawerIn))}px)`;
+    $('drawerBody').scrollTop=Math.round(150*ease((t-29)/3));
+    opacity('drawerActions',t>=31.8?1:0);
+    $('drawerActions').style.transform=`translateY(${Math.round(16*(1-ease((t-31.8)/.5)))}px)`;
+    $('confirmButton').style.transform=t>=37.1&&t<37.6?'scale(.965)':'scale(1)';
+    $('confirmButton').style.background=t>=37.1?'#b6dfcd':'#c5b0f1';
+    $('confirmButton').textContent=t>=37.8?'Confirmed':'Confirm request';
+    show('requestsPage',!schedule);show('schedulePage',schedule);show('hint',!schedule);
+    $('requestsNav').classList.toggle('active',!schedule);$('scheduleNav').classList.toggle('active',schedule);
+    $('crumbPage').textContent=schedule?'Schedule':'Requests';$('pageTitle').textContent=schedule?'Schedule':'Requests';
+    $('pageSub').textContent=schedule?'A clear view of your day.':'A clear inbox. A good day ahead.';
+    show('newButton',!schedule);
+    const eventIn=ease((t-49.2)/.8);
+    $('scheduleEvent').style.opacity=String(eventIn);$('scheduleEvent').style.transform=`translateY(${Math.round(24*(1-eventIn))}px)`;
+    const captureIn=ease((t-54)/.55);opacity('capture',captureIn);show('capture',t>=54);
+    opacity('sourcePill',t<54?1:0);
+    $('provenance').textContent=t>=54?'Actual app capture · verified data copy':'Illustrative replay · fictional data';
+    cursor(t);
+  };
+  window.render(0);
+</script>
+</body>
+</html>
